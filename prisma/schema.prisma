@@ -1,0 +1,202 @@
+// =============================================================================
+// SITA-ES — Esquema Prisma
+// Refleja la base desplegada en Supabase (PostgreSQL).
+// Modelos en PascalCase singular; tablas y columnas reales en minúscula
+// (Postgres convierte a minúscula los nombres sin comillas del script original).
+// NO editar a mano sin crear la migración correspondiente (ver README).
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Catálogos
+// -----------------------------------------------------------------------------
+
+model Estado {
+  id     Int    @id @default(autoincrement())
+  nombre String @db.VarChar(200)
+
+  recursos   Recurso[]
+  usuarios   Usuario[]
+  tutorias   Tutoria[]
+  horarios   Horario[]
+  reservas   Reserva[]
+
+  @@map("tbl_estado")
+}
+
+model Rol {
+  id     Int    @id @default(autoincrement())
+  nombre String @db.VarChar(200)
+
+  usuarios Usuario[]
+
+  @@map("tbl_rol")
+}
+
+model TipoDocumento {
+  id     Int    @id @default(autoincrement())
+  nombre String @db.VarChar(200)
+
+  usuarios Usuario[]
+
+  @@map("tbl_tipo_documento")
+}
+
+model Materia {
+  id       Int    @id @default(autoincrement())
+  nombre   String @db.VarChar(200)
+  codigo   String @unique @db.VarChar(50)
+  creditos Int
+
+  tutores  MateriaTutor[]
+  tutorias Tutoria[]
+
+  @@map("tbl_materia")
+}
+
+model Recurso {
+  id        Int    @id @default(autoincrement())
+  nombre    String @db.VarChar(200)
+  tipo      String @db.VarChar(50) // 'Físico' | 'Virtual'
+  ubicacion String @db.VarChar(255) // Salón/Bloque o enlace (Meet/Zoom)
+  capacidad Int    @default(1)
+  id_estado Int
+
+  estado   Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recurso_estado")
+  reservas Reserva[]
+
+  @@map("tbl_recurso")
+}
+
+// -----------------------------------------------------------------------------
+// Usuarios y datos académicos
+// -----------------------------------------------------------------------------
+
+model Usuario {
+  id                Int       @id @default(autoincrement())
+  nombre            String    @db.VarChar(200)
+  apellido          String    @db.VarChar(200)
+  id_tipo_documento Int
+  num_documento     String    @unique @db.VarChar(50)
+  correo            String    @unique @db.VarChar(200)
+  celular           String?   @db.VarChar(20)
+  /// En desuso: el rol se determina con id_rol (3 = Administrador).
+  es_administrador  Boolean   @default(false)
+  fecha_registro    DateTime? @default(now()) @db.Timestamp(6)
+  id_estado         Int
+  id_rol            Int
+  contrasena_hash   String    @db.VarChar(255)
+
+  tipoDocumento TipoDocumento  @relation(fields: [id_tipo_documento], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_tipo_doc")
+  estado        Estado         @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_estado")
+  rol           Rol            @relation(fields: [id_rol], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_rol")
+  estudiante    Estudiante?
+  materias      MateriaTutor[]
+  tutorias      Tutoria[]
+  reservas      Reserva[]
+  valoraciones  Valoracion[]
+
+  @@map("tbl_usuario")
+}
+
+model Estudiante {
+  id              Int    @id @default(autoincrement())
+  id_usuario      Int    @unique
+  nombre_programa String @db.VarChar(200)
+  semestre        Int
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_estudiante_usuario")
+
+  @@map("tbl_estudiante")
+}
+
+model MateriaTutor {
+  id         Int @id @default(autoincrement())
+  id_tutor   Int
+  id_materia Int
+
+  tutor   Usuario @relation(fields: [id_tutor], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_matxtutor_tutor")
+  materia Materia @relation(fields: [id_materia], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_matxtutor_materia")
+
+  @@unique([id_tutor, id_materia], map: "unique_tutor_materia")
+  @@map("tbl_materia_x_tutor")
+}
+
+// -----------------------------------------------------------------------------
+// Tutorías, horarios y reservas
+// -----------------------------------------------------------------------------
+
+model Tutoria {
+  id          Int       @id @default(autoincrement())
+  id_tutor    Int
+  id_materia  Int
+  id_estado   Int
+  titulo      String    @db.VarChar(200)
+  descripcion String?
+  nivel       String?   @db.VarChar(50) // 'Básico' | 'Intermedio' | 'Avanzado'
+  modalidad   String?   @db.VarChar(50) // 'Presencial' | 'Virtual' | 'Híbrida'
+  cupo        Int       @default(1)
+  fecha       DateTime? @default(now()) @db.Timestamp(6) // fecha de creación
+
+  tutor    Usuario   @relation(fields: [id_tutor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_tutor")
+  materia  Materia   @relation(fields: [id_materia], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_materia")
+  estado   Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_estado")
+  horarios Horario[]
+
+  @@map("tbl_tutoria")
+}
+
+model Horario {
+  id          Int      @id @default(autoincrement())
+  id_tutoria  Int
+  id_estado   Int
+  dia         String   @db.VarChar(20) // 'Lunes' ... 'Domingo'
+  hora_inicio DateTime @db.Time(6)
+  hora_fin    DateTime @db.Time(6)
+
+  tutoria  Tutoria   @relation(fields: [id_tutoria], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_horario_tutoria")
+  estado   Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_horario_estado")
+  reservas Reserva[]
+
+  @@map("tbl_horario")
+}
+
+model Reserva {
+  id                     Int       @id @default(autoincrement())
+  id_usuario_estudiante  Int
+  id_horario             Int
+  id_recurso             Int
+  id_estado              Int
+  fecha                  DateTime? @default(now()) @db.Timestamp(6) // cuándo se hizo la reserva
+  fecha_sesion           DateTime  @db.Date // día concreto en que ocurre la sesión
+
+  estudiante Usuario     @relation(fields: [id_usuario_estudiante], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_estudiante")
+  horario    Horario     @relation(fields: [id_horario], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_horario")
+  recurso    Recurso     @relation(fields: [id_recurso], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_recurso")
+  estado     Estado      @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_estado")
+  valoracion Valoracion?
+
+  @@map("tbl_reserva")
+}
+
+model Valoracion {
+  id                   Int       @id @default(autoincrement())
+  id_reserva           Int       @unique
+  calificacion         Int // CHECK 1..5 en la BD
+  comentario           String?
+  fecha                DateTime? @default(now()) @db.Timestamp(6)
+  id_usuario_evaluador Int
+
+  reserva   Reserva @relation(fields: [id_reserva], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_valoracion_reserva")
+  evaluador Usuario @relation(fields: [id_usuario_evaluador], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_valoracion_evaluador")
+
+  @@map("tbl_valoracion")
+}

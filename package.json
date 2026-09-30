@@ -1,0 +1,44 @@
+{
+  "name": "proyectosita-es_backend",
+  "version": "1.0.0",
+  "description": "API REST de SITA-ES (Sistema de Tutorías Académicas)",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:status": "prisma migrate status",
+    "db:studio": "prisma studio"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prisma": "^7.10.0"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joseMesa1213/proyectoSITA-ES_backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joseMesa1213/proyectoSITA-ES_backend/issues"
+  },
+  "homepage": "https://github.com/joseMesa1213/proyectoSITA-ES_backend#readme"
+}
