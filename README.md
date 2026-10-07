@@ -125,8 +125,8 @@ Prefijo: `/api`. **Público** = sin token.
 | | `GET /materias/mias` | Tutor | ✅ |
 | | `POST /materias` · `PUT /materias/:id` | Admin | ✅ |
 | | `POST /materias/:id/tutor` · `DELETE /materias/:id/tutor` | Tutor | ✅ |
-| **recursos** | `GET /recursos?tipo=` | Autenticado | ⏳ |
-| | `POST /recursos` · `PUT /recursos/:id` | Admin | ⏳ |
+| **recursos** | `GET /recursos?tipo=` | Autenticado | ✅ |
+| | `POST /recursos` · `PUT /recursos/:id` | Admin | ✅ |
 | **tutorias** | `GET /tutorias?id_materia=&nivel=&modalidad=` · `GET /tutorias/:id` | Público | ✅ |
 | | `GET /tutorias/mias` · `POST /tutorias` · `PUT /tutorias/:id` | Tutor (dueño) | ✅ |
 | | `POST /tutorias/:id/horarios` · `PATCH /tutorias/:id/horarios/:idHorario/desactivar` | Tutor (dueño) | ✅ |
