@@ -7,7 +7,3 @@ export class AppError extends Error {
     this.detalles = detalles;
   }
 }
-
-export const noImplementado = () => {
-  throw new AppError(501, "Endpoint pendiente de implementar");
-};

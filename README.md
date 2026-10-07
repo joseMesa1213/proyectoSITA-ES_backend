@@ -132,10 +132,8 @@ Prefijo: `/api`. **Público** = sin token.
 | | `POST /tutorias/:id/horarios` · `PATCH /tutorias/:id/horarios/:idHorario/desactivar` | Tutor (dueño) | ✅ |
 | **reservas** | `POST /reservas` · `GET /reservas/mias` · `PATCH /reservas/:id/cancelar` | Estudiante o Tutor | ✅ |
 | | `GET /reservas/tutor?fecha_sesion=` · `PATCH /reservas/:id/completar` | Tutor | ✅ |
-| **valoraciones** | `POST /valoraciones` | Estudiante o Tutor | ⏳ |
-| | `GET /valoraciones/tutoria/:idTutoria` | Público | ⏳ |
-
-⏳ = la ruta existe y responde **501** hasta que se implemente su service.
+| **valoraciones** | `POST /valoraciones` | Estudiante o Tutor | ✅ |
+| | `GET /valoraciones/tutoria/:idTutoria` | Público | ✅ |
 
 ### Ejemplos de body
 ```jsonc
