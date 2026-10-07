@@ -13,5 +13,17 @@ export const textoAFecha = (yyyymmdd) => new Date(`${yyyymmdd}T00:00:00Z`);
 export const fechaATexto = (date) => date.toISOString().slice(0, 10);
 
 export const esHoraValida = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v ?? "");
-export const esFechaValida = (v) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(v ?? "") && !Number.isNaN(new Date(v).getTime());
+
+// La ida y vuelta descarta fechas imposibles: JS convierte "2026-02-30" en 2 de marzo
+export const esFechaValida = (v) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v ?? "")) return false;
+  const fecha = textoAFecha(v);
+  return !Number.isNaN(fecha.getTime()) && fechaATexto(fecha) === v;
+};
+
+// La universidad opera en Colombia: "hoy" se calcula en esa zona aunque el servidor esté en UTC
+const ZONA_HORARIA = "America/Bogota";
+
+// Fecha actual como "2026-10-05" (en-CA formatea como YYYY-MM-DD)
+export const hoy = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_HORARIA }).format(new Date());

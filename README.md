@@ -130,8 +130,8 @@ Prefijo: `/api`. **Público** = sin token.
 | **tutorias** | `GET /tutorias?id_materia=&nivel=&modalidad=` · `GET /tutorias/:id` | Público | ✅ |
 | | `GET /tutorias/mias` · `POST /tutorias` · `PUT /tutorias/:id` | Tutor (dueño) | ✅ |
 | | `POST /tutorias/:id/horarios` · `PATCH /tutorias/:id/horarios/:idHorario/desactivar` | Tutor (dueño) | ✅ |
-| **reservas** | `POST /reservas` · `GET /reservas/mias` · `PATCH /reservas/:id/cancelar` | Estudiante o Tutor | ⏳ |
-| | `GET /reservas/tutor?fecha_sesion=` · `PATCH /reservas/:id/completar` | Tutor | ⏳ |
+| **reservas** | `POST /reservas` · `GET /reservas/mias` · `PATCH /reservas/:id/cancelar` | Estudiante o Tutor | ✅ |
+| | `GET /reservas/tutor?fecha_sesion=` · `PATCH /reservas/:id/completar` | Tutor | ✅ |
 | **valoraciones** | `POST /valoraciones` | Estudiante o Tutor | ⏳ |
 | | `GET /valoraciones/tutoria/:idTutoria` | Público | ⏳ |
 
