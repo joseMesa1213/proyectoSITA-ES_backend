@@ -8,7 +8,12 @@ export function rutaNoEncontrada(req, _res, next) {
 function desdePrisma(err) {
   switch (err.code) {
     case "P2002":
-      return new AppError(409, "Ya existe un registro con esos datos", { campos: err.meta?.target });
+      // Con driver adapter, meta.target puede venir vacío
+      return new AppError(
+        409,
+        "Ya existe un registro con esos datos",
+        err.meta?.target?.length ? { campos: err.meta.target } : undefined
+      );
     case "P2003":
       return new AppError(400, "Referencia a un registro que no existe");
     case "P2025":

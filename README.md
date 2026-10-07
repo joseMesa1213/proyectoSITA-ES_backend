@@ -121,10 +121,10 @@ Prefijo: `/api`. **Público** = sin token.
 | | `POST /auth/login` | Público | ✅ |
 | | `GET /auth/perfil` | Autenticado | ✅ |
 | **catalogos** | `GET /catalogos/estados` · `/roles` · `/tipos-documento` · `/opciones` | Público | ✅ |
-| **materias** | `GET /materias?q=` | Público | ⏳ |
-| | `GET /materias/mias` | Tutor | ⏳ |
-| | `POST /materias` · `PUT /materias/:id` | Admin | ⏳ |
-| | `POST /materias/:id/tutor` · `DELETE /materias/:id/tutor` | Tutor | ⏳ |
+| **materias** | `GET /materias?q=` | Público | ✅ |
+| | `GET /materias/mias` | Tutor | ✅ |
+| | `POST /materias` · `PUT /materias/:id` | Admin | ✅ |
+| | `POST /materias/:id/tutor` · `DELETE /materias/:id/tutor` | Tutor | ✅ |
 | **recursos** | `GET /recursos?tipo=` | Autenticado | ⏳ |
 | | `POST /recursos` · `PUT /recursos/:id` | Admin | ⏳ |
 | **tutorias** | `GET /tutorias?id_materia=&nivel=&modalidad=` · `GET /tutorias/:id` | Público | ⏳ |
