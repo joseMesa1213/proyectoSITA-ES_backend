@@ -27,3 +27,12 @@ const ZONA_HORARIA = "America/Bogota";
 // Fecha actual como "2026-10-05" (en-CA formatea como YYYY-MM-DD)
 export const hoy = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: ZONA_HORARIA }).format(new Date());
+
+// Hora actual como "14:30" (h23 evita que medianoche salga como "24:00")
+export const ahora = () =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: ZONA_HORARIA,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date());

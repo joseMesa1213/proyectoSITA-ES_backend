@@ -53,6 +53,10 @@ export async function crear(datos) {
  * PUT /api/recursos/:id — admin.
  * Body: { nombre?, tipo?, ubicacion?, capacidad?, id_estado? }
  * id_estado solo ACTIVO o INACTIVO (así se "elimina" un recurso). 404 si no existe.
+ * Si está asignado a horarios ACTIVOS (409, con la lista de tutorías):
+ * - no se puede inactivar ni cambiar de tipo;
+ * - la capacidad no puede quedar por debajo del cupo de esas tutorías.
+ * Concurrencia: bloquea el recurso; nadie puede asignarlo a un horario mientras se valida.
  */
 export async function actualizar(id, datos = {}) {
   const data = datosRecurso(datos);
@@ -62,5 +66,30 @@ export async function actualizar(id, datos = {}) {
       "Envíe al menos uno de: nombre, tipo, ubicacion, capacidad, id_estado"
     );
   }
-  return prisma.recurso.update({ where: { id }, data });
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM tbl_recurso WHERE id = ${id} FOR UPDATE`;
+    const recurso = await tx.recurso.findUnique({ where: { id } });
+    if (!recurso) throw new AppError(404, "Recurso no encontrado");
+
+    const horarios = await tx.horario.findMany({
+      where: { id_recurso: id, id_estado: ESTADO.ACTIVO },
+      select: { dia: true, tutoria: { select: { titulo: true, cupo: true } } },
+    });
+    if (horarios.length > 0) {
+      const detalles = { tutorias: [...new Set(horarios.map((h) => h.tutoria.titulo))] };
+      if (data.id_estado === ESTADO.INACTIVO || (data.tipo && data.tipo !== recurso.tipo)) {
+        throw new AppError(
+          409,
+          "El recurso está asignado a horarios activos; deben desactivarse antes de inactivarlo o cambiar su tipo",
+          detalles
+        );
+      }
+      const cupoMayor = Math.max(...horarios.map((h) => h.tutoria.cupo));
+      if (data.capacidad !== undefined && data.capacidad < cupoMayor) {
+        throw new AppError(409, `Una tutoría que usa este recurso tiene cupo ${cupoMayor}`, detalles);
+      }
+    }
+
+    return tx.recurso.update({ where: { id }, data });
+  });
 }

@@ -23,3 +23,6 @@ export const DIAS = Object.freeze([
 export const NIVELES = Object.freeze(["Básico", "Intermedio", "Avanzado"]);
 export const MODALIDADES = Object.freeze(["Presencial", "Virtual", "Híbrida"]);
 export const TIPOS_RECURSO = Object.freeze(["Físico", "Virtual"]);
+
+// Tipo de recurso que acepta cada modalidad (Híbrida o sin modalidad: cualquiera)
+export const RECURSO_POR_MODALIDAD = Object.freeze({ Presencial: "Físico", Virtual: "Virtual" });

@@ -106,6 +106,39 @@ Header `Authorization: Bearer <token>`. Tras `autenticar`, `req.usuario = { id, 
 - **Reserva:** `ACTIVO → COMPLETADO` (lo marca el tutor) o `ACTIVO → CANCELADO`. `PENDIENTE` no se usa en el MVP.
 - **Valoración:** solo quien reservó, solo si la reserva está `COMPLETADO`, una por reserva, calificación 1–5.
 
+### Salones y cruces de horario
+- El **recurso (salón o enlace) es del horario**, no de cada estudiante: el tutor lo elige al crear el bloque semanal y la reserva lo copia.
+- Al crear un horario (409 si no se cumple):
+  - La tutoría está activa.
+  - El recurso está activo y es compatible con la modalidad (Presencial→Físico, Virtual→Virtual).
+  - La capacidad del recurso es mayor o igual al cupo de la tutoría.
+  - No se cruza con otro horario activo del tutor ni con otro horario activo **de cualquier tutor en el mismo recurso**.
+  - No se cruza con una reserva futura que el tutor hizo como estudiante.
+- Al reservar (409 si no se cumple):
+  - El usuario no tiene otra reserva activa ese día que se solape en horas.
+  - Si es tutor, no está dictando una tutoría suya en esa franja.
+  - Si la fecha es hoy, la sesión aún no empieza.
+- Solo se **completa** una sesión que ya terminó (hoy, después de `hora_fin`, o un día anterior).
+
+### Cambios sobre datos en uso
+- **Desactivar un horario** o **inactivar una tutoría** cancela en cascada las reservas de sesiones que aún no empiezan; la respuesta trae `reservas_canceladas`. Inactivar la tutoría también inactiva sus horarios.
+- **Cupo de la tutoría:** no puede superar la capacidad del recurso de sus horarios ni quedar por debajo de las reservas de una sesión futura. La **modalidad** debe seguir siendo compatible con esos recursos.
+- **Recurso con horarios activos:** no se puede inactivar ni cambiar de tipo, y su capacidad no puede quedar por debajo del cupo de esas tutorías.
+
+### Concurrencia
+Las validaciones que cuentan o buscan cruces se hacen en una transacción que bloquea filas con `SELECT ... FOR UPDATE`. Así, dos peticiones simultáneas se atienden de a una y la segunda ve lo que hizo la primera.
+
+| Operación | Bloquea |
+|---|---|
+| Crear reserva | usuario que reserva → horario |
+| Crear horario | tutor → tutoría → recurso |
+| Editar o inactivar tutoría | tutoría → sus horarios activos → sus recursos |
+| Desactivar horario | horario |
+| Editar recurso | recurso |
+| Cancelar o completar reserva | nada: `UPDATE ... WHERE id_estado = ACTIVO`; si llegan a la vez, una recibe 409 |
+
+**Siempre en el orden `usuario → tutoría → horario → recurso`** (y varias filas de una tabla `ORDER BY id`). Bloquear en otro orden puede causar *deadlocks*.
+
 Cada función de `*.service.js` tiene en su comentario las validaciones exactas que debe cumplir.
 
 ---
@@ -147,10 +180,10 @@ Prefijo: `/api`. **Público** = sin token.
   "nivel": "Básico", "modalidad": "Presencial", "cupo": 5 }
 
 // POST /tutorias/:id/horarios
-{ "dia": "Lunes", "hora_inicio": "10:00", "hora_fin": "12:00" }
+{ "dia": "Lunes", "hora_inicio": "10:00", "hora_fin": "12:00", "id_recurso": 2 }
 
-// POST /reservas
-{ "id_horario": 7, "id_recurso": 2, "fecha_sesion": "2026-10-05" }
+// POST /reservas  (el recurso sale del horario)
+{ "id_horario": 7, "fecha_sesion": "2026-10-05" }
 
 // POST /valoraciones
 { "id_reserva": 12, "calificacion": 5, "comentario": "Muy clara la explicación" }
@@ -166,7 +199,7 @@ Prefijo: `/api`. **Público** = sin token.
 La BD ya existía, así que la migración `0_init` (el script original) se marca como aplicada sin ejecutarla, y luego se aplican las pendientes:
 ```bash
 npx prisma migrate resolve --applied 0_init
-npm run db:migrate          # aplica 20260929000000_contrasena_y_fecha_sesion
+npm run db:migrate          # aplica las migraciones pendientes
 npm run db:status           # debe decir "Database schema is up to date"
 ```
 
@@ -180,6 +213,17 @@ npm run db:status           # debe decir "Database schema is up to date"
    ```
 3. Revisar el SQL, abrir PR y, una vez aprobado, aplicarlo: `npm run db:migrate`.
 4. Todos ejecutan `npm run prisma:generate` después de hacer pull.
+
+### Datos de demostración
+`npm run db:seed` carga datos inspirados en Ingeniería de Sistemas de la UdeA ([prisma/seed.js](prisma/seed.js)). Incluye:
+- Materias de matemáticas, física y del pensum con sus códigos reales.
+- Aulas de los bloques 19, 20 y 21, y salas virtuales.
+- Tutorías con horarios en bloques de 2 h.
+- Sesiones pasadas (completadas, valoradas y canceladas) y reservas próximas.
+
+Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `coordinacion.sita-es@udea.edu.co`.
+- Solo agrega datos: no borra nada. Si ya se aplicó, no hace nada.
+- Las fechas se calculan desde el día en que se ejecuta.
 
 ### Otros
 - `npm run db:studio` → explorador visual de datos.
