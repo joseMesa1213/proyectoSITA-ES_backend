@@ -1,5 +1,7 @@
 # SITA-ES Backend — Cierre de la Etapa 1
 
+> 📌 Documento histórico del arranque del proyecto. El estado final está en [cierre.md](cierre.md).
+
 **Estado:** columna del backend construida, conectada a Supabase y probada (registro, login y perfil funcionando).
 **Siguiente etapa:** cada integrante implementa un módulo sobre esta base.
 

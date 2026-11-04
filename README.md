@@ -6,6 +6,14 @@ API REST del Sistema de Tutorías Académicas. Estudiantes reservan cupo en tuto
 
 > Alcance: **solo el MVP**. Si algo no está en la tabla de endpoints, no se construye sin acordarlo con el equipo.
 
+| | URL |
+|---|---|
+| API en producción | https://proyectosita-es-backend.onrender.com/api/salud |
+| Aplicación (frontend) | https://proyectosita-es.onrender.com |
+| Repositorio del frontend | https://github.com/joseMesa1213/proyectoSITA-ES |
+
+Estado final del proyecto, cuentas de prueba y pendientes: [docs/cierre.md](docs/cierre.md).
+
 ---
 
 ## 1. Puesta en marcha
@@ -231,7 +239,34 @@ Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `co
 
 ---
 
-## 7. Flujo de trabajo en Git
+## 7. Despliegue (Render)
+
+La API se publica como **Web Service** en Render, conectado a la rama `main` (cada push despliega). La base de datos sigue en Supabase.
+
+| Campo | Valor |
+|---|---|
+| Build Command | `npm install` (el `postinstall` genera el cliente Prisma) |
+| Start Command | `npm start` |
+| Health Check Path | `/api/salud` (recomendado) |
+
+Variables de entorno en Render:
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | Conexión por pooler de Supabase (puerto 6543) |
+| `JWT_SECRET` | Cadena larga y aleatoria, distinta a la de desarrollo |
+| `JWT_EXPIRES_IN` | Opcional (`8h` por defecto) |
+| `CORS_ORIGIN` | `https://proyectosita-es.onrender.com,http://localhost:5173` |
+
+- `PORT` lo asigna Render; no se configura.
+- `DIRECT_URL` no hace falta en Render: solo la usa la CLI de Prisma. Las **migraciones no se aplican al desplegar**:
+  el dueño de la BD las aplica desde su equipo (`npm run db:migrate`, §6) **antes** de fusionar el código que las necesita.
+- La raíz `/` responde `404 Ruta no encontrada` a propósito: todas las rutas están bajo `/api`.
+- En el plan gratuito el servicio se duerme tras unos 15 minutos sin uso y la primera petición tarda entre 30 y 50 s.
+
+---
+
+## 8. Flujo de trabajo en Git
 
 - Rama por módulo: `feature/<modulo>` (ej. `feature/reservas`) desde `main`.
 - Commits cortos en español: `reservas: valida cupo al crear`.
