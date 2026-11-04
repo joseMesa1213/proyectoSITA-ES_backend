@@ -124,7 +124,7 @@ Contraseña de todas las cuentas: `Udea123.`
 
 - [ ] **Colección de Postman**: exportarla a `docs/` con dos entornos (`local` → `http://localhost:3000/api` y `render` → `https://proyectosita-es-backend.onrender.com/api`), con casos correctos y de error por endpoint.
 - [ ] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia con y sin errores de escritura, cada botón del menú y preguntas libres.
-- [ ] **Rutas internas del frontend en Render**: confirmar que existe la regla *Rewrite* `/*` → `/index.html` (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
+- [x] **Rutas internas del frontend en Render**: regla *Rewrite* `/*` → `/index.html` configurada (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
 
 ---
 
