@@ -1,14 +1,18 @@
 # Pruebas de la API con Postman
 
-Colección: `SITA-ES.postman_collection.json` (127 peticiones, 313 verificaciones).
+Colección: `SITA-ES.postman_collection.json` (132 peticiones, 327 verificaciones).
 Entornos: `SITA-ES-local.postman_environment.json` y `SITA-ES-render.postman_environment.json`.
 
 | Carpeta | Qué prueba | Dónde correrla |
 |---|---|---|
-| **1. Humo (solo lectura)** | Salud, catálogos, login, perfil, consultas públicas y privadas, filtros, errores 400/401/403/404 y permisos por rol. No escribe nada. | Local y Render |
+| **1. Humo (solo lectura)** | Salud, catálogos, login, perfil, consultas públicas y privadas, filtros, errores 400/401/403/404, permisos por rol y errores del inicio de sesión con Google. No escribe nada. | Local y Render |
 | **2. Flujo completo (solo local)** | Registro, materias, recursos, tutorías, horarios, reservas, cupos, cruces, cancelar, completar, valorar y desactivar. Crea datos de prueba. | Solo en una base de datos de pruebas |
 
 Todas las respuestas se revisan también con una prueba general: `ok: true` si la respuesta es exitosa, y `ok: false` con `error.mensaje` si es un error.
+
+Los casos de Google (en *Autenticación*) solo prueban errores: un caso correcto necesita un ID token real que entrega
+el botón de Google en el navegador. Requieren que el servidor tenga `GOOGLE_CLIENT_ID`; sin él responden 503.
+Contra Render pasan cuando la rama del login con Google esté desplegada.
 
 ## Importar
 

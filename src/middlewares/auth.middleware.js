@@ -8,13 +8,19 @@ export function autenticar(req, _res, next) {
   if (tipo !== "Bearer" || !token) {
     throw new AppError(401, "Token no proporcionado");
   }
+  let datos;
   try {
-    const { id, rol } = jwt.verify(token, env.jwtSecret);
-    req.usuario = { id, rol };
-    next();
+    datos = jwt.verify(token, env.jwtSecret);
   } catch {
     throw new AppError(401, "Token inválido o expirado");
   }
+  // Solo sirve un token de sesión: debe traer id y rol. Así ningún otro token firmado
+  // (por ejemplo, el de "completar registro con Google") se acepta como sesión.
+  if (!Number.isInteger(datos.id) || !Number.isInteger(datos.rol) || datos.tipo) {
+    throw new AppError(401, "Token inválido o expirado");
+  }
+  req.usuario = { id: datos.id, rol: datos.rol };
+  next();
 }
 
 // Usar después de autenticar: autorizar(ROL.TUTOR, ROL.ADMINISTRADOR)

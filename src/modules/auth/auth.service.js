@@ -1,6 +1,8 @@
+import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "../../lib/prisma.js";
+import { verificarCredencialGoogle } from "../../lib/google.js";
 import { env } from "../../config/env.js";
 import { ESTADO, ROL } from "../../constants/catalogos.js";
 import { AppError } from "../../utils/AppError.js";
@@ -17,16 +19,18 @@ const firmarToken = (usuario) =>
     expiresIn: env.jwtExpiresIn,
   });
 
-export async function registrar(datos) {
+/**
+ * Crea el usuario con su fila de estudiante y devuelve la sesión.
+ * La usan el registro normal y el registro con Google: así ambos validan lo mismo.
+ * Correo o documento repetidos → 409 (P2002 en el manejador de errores).
+ */
+async function crearUsuario(datos, contrasena) {
   requerirCampos(datos, [
     "nombre", "apellido", "id_tipo_documento", "num_documento", "correo",
-    "contrasena", "id_rol", "nombre_programa", "semestre",
+    "id_rol", "nombre_programa", "semestre",
   ]);
   // El administrador no se registra por la API: se crea directamente en la BD.
   validarOpcion(Number(datos.id_rol), [ROL.ESTUDIANTE, ROL.TUTOR], "id_rol");
-  if (String(datos.contrasena).length < 8) {
-    throw new AppError(400, "La contraseña debe tener al menos 8 caracteres");
-  }
 
   const usuario = await prisma.usuario.create({
     data: {
@@ -36,7 +40,7 @@ export async function registrar(datos) {
       num_documento: String(datos.num_documento),
       correo: String(datos.correo).trim().toLowerCase(),
       celular: datos.celular ?? null,
-      contrasena_hash: await bcrypt.hash(String(datos.contrasena), 10),
+      contrasena_hash: await bcrypt.hash(String(contrasena), 10),
       id_rol: Number(datos.id_rol),
       id_estado: ESTADO.ACTIVO,
       estudiante: {
@@ -50,6 +54,14 @@ export async function registrar(datos) {
   });
 
   return { token: firmarToken(usuario), usuario };
+}
+
+export async function registrar(datos) {
+  requerirCampos(datos, ["contrasena"]);
+  if (String(datos.contrasena).length < 8) {
+    throw new AppError(400, "La contraseña debe tener al menos 8 caracteres");
+  }
+  return crearUsuario(datos, datos.contrasena);
 }
 
 export async function iniciarSesion({ correo, contrasena } = {}) {
@@ -75,4 +87,127 @@ export async function obtenerPerfil(idUsuario) {
   });
   if (!usuario) throw new AppError(404, "Usuario no encontrado");
   return usuario;
+}
+
+// --- Inicio de sesión con Google ------------------------------------------------------
+//
+// Flujo:
+//   1. El frontend muestra el botón de Google y recibe un ID token (credential).
+//   2. POST /auth/google { credential }: se verifica el token y se busca el correo.
+//      - Si el usuario existe → sesión normal { token, usuario }.
+//      - Si no existe → { registro_pendiente, token_registro, perfil }: faltan documento, programa, etc.
+//   3. POST /auth/google/registro { token_registro, ...datos que faltan } → crea el usuario.
+//
+// El token de registro dura 15 minutos y se firma con un secreto DISTINTO al de las sesiones
+// y con tipo "registro_google": no sirve como sesión, y un token de sesión no sirve para registrarse.
+
+const TIPO_REGISTRO_GOOGLE = "registro_google";
+const DURACION_REGISTRO_GOOGLE = "15m";
+const secretoRegistro = () => `${env.jwtSecret}:registro-google`;
+
+// Gmail no tiene "hd" (dominio de Google Workspace): solo se exige en dominios institucionales
+const DOMINIOS_SIN_WORKSPACE = ["gmail.com"];
+
+/**
+ * Verifica el ID token de Google y devuelve { correo, nombre, apellido }.
+ * - Token inválido, vencido o de otra app → 401.
+ * - Correo no verificado por Google → 403.
+ * - Correo de otro dominio (GOOGLE_DOMINIO, por defecto udea.edu.co) → 403.
+ *   Además del final del correo se revisa "hd", que Google solo pone en cuentas administradas
+ *   por la institución: así no basta con una cuenta personal que use un correo @udea.edu.co.
+ */
+async function verificarCuentaGoogle(credential) {
+  requerirCampos({ credential }, ["credential"]);
+  if (!env.googleClientId) {
+    throw new AppError(503, "El inicio de sesión con Google no está configurado en el servidor");
+  }
+
+  let cuenta;
+  try {
+    cuenta = await verificarCredencialGoogle(String(credential));
+  } catch {
+    throw new AppError(401, "No se pudo verificar la cuenta de Google. Intente de nuevo.");
+  }
+
+  const correo = String(cuenta?.email ?? "").trim().toLowerCase();
+  if (!correo || (cuenta.email_verified !== true && cuenta.email_verified !== "true")) {
+    throw new AppError(403, "La cuenta de Google no tiene el correo verificado");
+  }
+  const dominio = env.googleDominio;
+  const exigeHd = !DOMINIOS_SIN_WORKSPACE.includes(dominio);
+  if (!correo.endsWith(`@${dominio}`) || (exigeHd && String(cuenta.hd ?? "").toLowerCase() !== dominio)) {
+    throw new AppError(403, `Solo se permite ingresar con Google usando un correo @${dominio}`);
+  }
+
+  // Algunas cuentas no traen nombre y apellido por separado: se toman del nombre completo
+  const [primero = "", ...resto] = String(cuenta.name ?? "").trim().split(/\s+/);
+  return {
+    correo,
+    nombre: String(cuenta.given_name ?? primero).trim(),
+    apellido: String(cuenta.family_name ?? resto.join(" ")).trim(),
+  };
+}
+
+/**
+ * POST /api/auth/google — público. Body: { credential }
+ * Usuario existente y activo → { token, usuario } (igual que /auth/login). Inactivo → 403.
+ * Administrador → 403: la cuenta con más permisos no se vincula a Google; entra con correo y contraseña.
+ * Usuario nuevo → { registro_pendiente: true, token_registro, perfil: { correo, nombre, apellido } }.
+ */
+export async function iniciarConGoogle({ credential } = {}) {
+  const perfil = await verificarCuentaGoogle(credential);
+
+  const usuario = await prisma.usuario.findUnique({ where: { correo: perfil.correo }, include: incluirPerfil });
+  if (usuario) {
+    if (usuario.id_estado !== ESTADO.ACTIVO) throw new AppError(403, "Usuario inactivo");
+    if (usuario.id_rol === ROL.ADMINISTRADOR) {
+      throw new AppError(403, "Los administradores deben iniciar sesión con correo y contraseña");
+    }
+    return { token: firmarToken(usuario), usuario };
+  }
+
+  const token_registro = jwt.sign({ tipo: TIPO_REGISTRO_GOOGLE, ...perfil }, secretoRegistro(), {
+    expiresIn: DURACION_REGISTRO_GOOGLE,
+  });
+  return { registro_pendiente: true, token_registro, perfil };
+}
+
+/**
+ * POST /api/auth/google/registro — público.
+ * Body: { token_registro, id_rol, id_tipo_documento, num_documento, nombre_programa, semestre,
+ *         celular?, nombre?, apellido? }
+ * El CORREO sale siempre del token firmado (nunca del body). Nombre y apellido se pueden corregir.
+ * Token inválido o vencido → 401. El resto de validaciones son las del registro normal.
+ *
+ * Sin migración de BD: como contrasena_hash es obligatorio, se guarda el hash de una contraseña
+ * aleatoria que nadie conoce. Esa persona entra solo con Google (no con correo y contraseña).
+ */
+export async function registrarConGoogle(datos = {}) {
+  requerirCampos(datos, ["token_registro"]);
+
+  let perfil;
+  try {
+    perfil = jwt.verify(String(datos.token_registro), secretoRegistro());
+  } catch (error) {
+    throw new AppError(
+      401,
+      error.name === "TokenExpiredError"
+        ? "El tiempo para completar el registro venció. Vuelva a continuar con Google."
+        : "El registro con Google no es válido. Vuelva a continuar con Google."
+    );
+  }
+  if (perfil.tipo !== TIPO_REGISTRO_GOOGLE) {
+    throw new AppError(401, "El registro con Google no es válido. Vuelva a continuar con Google.");
+  }
+
+  const { token_registro, correo, contrasena, ...resto } = datos;
+  return crearUsuario(
+    {
+      ...resto,
+      nombre: String(datos.nombre ?? perfil.nombre).trim(),
+      apellido: String(datos.apellido ?? perfil.apellido).trim(),
+      correo: perfil.correo,
+    },
+    randomBytes(32).toString("hex")
+  );
 }

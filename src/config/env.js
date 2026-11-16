@@ -17,4 +17,8 @@ export const env = {
     .split(",")
     .map((origen) => origen.trim().replace(/\/$/, ""))
     .filter(Boolean),
+  // Inicio de sesión con Google (opcional): sin GOOGLE_CLIENT_ID, /auth/google responde 503
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  // Dominio de correo permitido con Google (sin @). Por defecto, el institucional.
+  googleDominio: (process.env.GOOGLE_DOMINIO || "udea.edu.co").trim().toLowerCase().replace(/^@/, ""),
 };

@@ -22,6 +22,7 @@ Estado final del proyecto, cuentas de prueba y pendientes: [docs/cierre.md](docs
 npm install                 # instala y genera el cliente Prisma (postinstall)
 cp .env.example .env        # completar DATABASE_URL, DIRECT_URL y JWT_SECRET
 npm run dev                 # http://localhost:3000/api/salud
+npm test                    # pruebas automáticas (Vitest), no usan la base de datos
 ```
 
 Las URLs de conexión están en Supabase → **Project Settings → Database → Connection string**:
@@ -101,6 +102,45 @@ Desde el service: `throw new AppError(status, "mensaje", detalles?)`. No hace fa
 
 ### Autenticación
 Header `Authorization: Bearer <token>`. Tras `autenticar`, `req.usuario = { id, rol }`. El token dura `JWT_EXPIRES_IN` (8h por defecto).
+`autenticar` solo acepta tokens de sesión (con `id` y `rol` numéricos): cualquier otro JWT firmado, como el de registro con Google, responde 401.
+
+### Inicio de sesión con Google
+El botón "Continuar con Google" del frontend entrega un **ID token** (`credential`) que el backend verifica con
+`google-auth-library` (firma de Google, `audience = GOOGLE_CLIENT_ID` y vencimiento). No se usa *client secret*.
+
+1. `POST /auth/google { credential }`
+   - Exige `email_verified` y un correo del dominio `GOOGLE_DOMINIO` (por defecto `udea.edu.co`). También revisa `hd`,
+     que Google solo pone en cuentas administradas por la institución. Sin `GOOGLE_CLIENT_ID` responde **503**.
+   - **Usuario existente y activo** → `{ token, usuario }`, igual que `/auth/login`. Inactivo → 403.
+   - **Administrador** → 403: debe iniciar sesión con correo y contraseña (la cuenta con más permisos no se vincula a Google).
+   - **Usuario nuevo** → `{ registro_pendiente: true, token_registro, perfil: { correo, nombre, apellido } }`.
+     El `token_registro` dura **15 minutos** y se firma con un secreto distinto al de las sesiones.
+2. `POST /auth/google/registro { token_registro, id_rol, id_tipo_documento, num_documento, nombre_programa, semestre, celular?, nombre?, apellido? }`
+   → crea el usuario con las validaciones del registro normal y devuelve `{ token, usuario }`.
+   El **correo sale siempre del token** (nunca del body); nombre y apellido se pueden corregir.
+
+| Caso | Respuesta |
+|---|---|
+| Falta `credential` o `token_registro` | 400 |
+| Token de Google inválido, vencido o de otra app | 401 |
+| Correo no verificado por Google | 403 |
+| Correo de otro dominio, o cuenta personal sin `hd` institucional | 403 |
+| Usuario inactivo | 403 |
+| Cuenta de administrador | 403 |
+| `token_registro` vencido, alterado o que no es de registro | 401 |
+| Correo o documento ya registrados | 409 |
+
+**Sin migración de BD.** Como `contrasena_hash` es obligatorio, a quien se registra con Google se le guarda el hash de una
+contraseña aleatoria que nadie conoce. Consecuencias:
+- Esa persona **solo entra con Google**: con correo y contraseña recibe "Credenciales inválidas".
+- Si pierde el acceso a su cuenta de Google, la coordinación debe asignarle una contraseña desde la BD (no hay recuperación).
+- Quien ya tenía cuenta con contraseña puede usar **los dos** métodos: Google entra a la misma cuenta (se vincula por correo).
+- El backend no distingue quién se registró con Google. Si se necesita, una migración futura puede agregar una columna `proveedor`.
+
+**Limitación conocida (vincular por correo):** el registro normal no verifica el correo. Alguien podría crear una cuenta con
+contraseña usando el correo institucional de otra persona; si luego el dueño real entra con Google, accede a esa misma cuenta.
+Por la misma razón, las cuentas de demostración usan el dominio ficticio `@demo.sita-es.test` (ver *Datos de demostración*),
+y los administradores no pueden entrar con Google.
 
 ---
 
@@ -160,6 +200,7 @@ Prefijo: `/api`. **Público** = sin token.
 | — | `GET /salud` | Público | ✅ |
 | **auth** | `POST /auth/registro` | Público | ✅ |
 | | `POST /auth/login` | Público | ✅ |
+| | `POST /auth/google` · `POST /auth/google/registro` | Público | ✅ |
 | | `GET /auth/perfil` | Autenticado | ✅ |
 | **catalogos** | `GET /catalogos/estados` · `/roles` · `/tipos-documento` · `/opciones` | Público | ✅ |
 | **materias** | `GET /materias?q=` | Público | ✅ |
@@ -182,6 +223,13 @@ Prefijo: `/api`. **Público** = sin token.
 { "nombre": "Ana", "apellido": "Gómez", "id_tipo_documento": 1, "num_documento": "1001",
   "correo": "ana@uni.edu.co", "contrasena": "minimo8chars", "celular": "3001234567",
   "id_rol": 1, "nombre_programa": "Ingeniería de Sistemas", "semestre": 4 }
+
+// POST /auth/google  (credential = ID token del botón de Google)
+{ "credential": "eyJhbGciOiJSUzI1NiIs..." }
+
+// POST /auth/google/registro  (token_registro = el que devolvió /auth/google)
+{ "token_registro": "eyJhbGciOiJIUzI1NiIs...", "id_rol": 1, "id_tipo_documento": 1,
+  "num_documento": "1002", "nombre_programa": "Ingeniería de Sistemas", "semestre": 2 }
 
 // POST /tutorias
 { "id_materia": 3, "titulo": "Repaso de derivadas", "descripcion": "...",
@@ -229,7 +277,9 @@ npm run db:status           # debe decir "Database schema is up to date"
 - Tutorías con horarios en bloques de 2 h.
 - Sesiones pasadas (completadas, valoradas y canceladas) y reservas próximas.
 
-Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `coordinacion.sita-es@udea.edu.co`.
+Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `coordinacion.sita-es@demo.sita-es.test`.
+- Los correos usan el dominio ficticio `@demo.sita-es.test` para que ninguno coincida con el de una persona real de la UdeA
+  (que podría entrar con Google). En una base cargada antes con `@udea.edu.co`: [`docs/sql/cambiar-dominio-demo.sql`](docs/sql/cambiar-dominio-demo.sql).
 - Solo agrega datos: no borra nada. Si ya se aplicó, no hace nada.
 - Las fechas se calculan desde el día en que se ejecuta.
 
@@ -257,8 +307,13 @@ Variables de entorno en Render:
 | `JWT_SECRET` | Cadena larga y aleatoria, distinta a la de desarrollo |
 | `JWT_EXPIRES_IN` | Opcional (`8h` por defecto) |
 | `CORS_ORIGIN` | `https://proyectosita-es.onrender.com,http://localhost:5173` |
+| `GOOGLE_CLIENT_ID` | ID de cliente OAuth de Google (termina en `.apps.googleusercontent.com`). Sin él, el login con Google responde 503 y el resto sigue igual |
+| `GOOGLE_DOMINIO` | Opcional (`udea.edu.co` por defecto): dominio de correo permitido con Google |
 
 - `PORT` lo asigna Render; no se configura.
+- `GOOGLE_CLIENT_ID` debe ser **el mismo** que `VITE_GOOGLE_CLIENT_ID` del frontend. En Google Cloud Console →
+  *APIs y servicios → Credenciales*, ese ID de cliente debe tener en **Orígenes autorizados de JavaScript**
+  `https://proyectosita-es.onrender.com` y `http://localhost:5173`.
 - `DIRECT_URL` no hace falta en Render: solo la usa la CLI de Prisma. Las **migraciones no se aplican al desplegar**:
   el dueño de la BD las aplica desde su equipo (`npm run db:migrate`, §6) **antes** de fusionar el código que las necesita.
 - La raíz `/` responde `404 Ruta no encontrada` a propósito: todas las rutas están bajo `/api`.
