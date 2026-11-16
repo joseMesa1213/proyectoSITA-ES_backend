@@ -34,19 +34,19 @@
     },
     {
       "key": "correo_admin",
-      "value": "coordinacion.sita-es@udea.edu.co"
+      "value": "coordinacion.sita-es@demo.sita-es.test"
     },
     {
       "key": "correo_tutor",
-      "value": "valentina.restrepo@udea.edu.co"
+      "value": "valentina.restrepo@demo.sita-es.test"
     },
     {
       "key": "correo_estudiante",
-      "value": "camila.gomez@udea.edu.co"
+      "value": "camila.gomez@demo.sita-es.test"
     },
     {
       "key": "correo_estudiante2",
-      "value": "andres.ospina@udea.edu.co"
+      "value": "andres.ospina@demo.sita-es.test"
     },
     {
       "key": "token_falso",
@@ -678,7 +678,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"correo\": \"x@udea.edu.co\"\n}",
+                  "raw": "{\n  \"correo\": \"x@demo.sita-es.test\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -720,7 +720,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Admin\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@udea.edu.co\",\n  \"contrasena\": \"Clave1234\",\n  \"id_rol\": 3,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Admin\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"Clave1234\",\n  \"id_rol\": 3,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -762,7 +762,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Corta\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@udea.edu.co\",\n  \"contrasena\": \"123\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Corta\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"123\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -778,6 +778,225 @@
                     "exec": [
                       "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
                       "pm.test(\"Mensaje: al menos 8 caracteres\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"al menos 8 caracteres\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Google sin credential → 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
+                      "pm.test(\"Falta credential\", () => pm.expect(pm.response.json().error.detalles.faltantes).to.include(\"credential\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Google con token inválido → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"credential\": \"token-que-no-es-de-google\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Si el servidor no tiene GOOGLE_CLIENT_ID responde 503: configurarlo antes de correr la colección",
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Mensaje: no se pudo verificar\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"No se pudo verificar\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registro con Google sin token_registro → 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google/registro",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google",
+                    "registro"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id_rol\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
+                      "pm.test(\"Falta token_registro\", () => pm.expect(pm.response.json().error.detalles.faltantes).to.include(\"token_registro\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registro con Google con token falso → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google/registro",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google",
+                    "registro"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token_registro\": \"{{token_falso}}\",\n  \"id_rol\": 1,\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Pide volver a continuar con Google\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Vuelva a continuar con Google\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registro con Google usando un token de sesión → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google/registro",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google",
+                    "registro"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token_registro\": \"{{token_estudiante}}\",\n  \"id_rol\": 1,\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// El token de sesión del login no sirve para registrarse: los tokens de registro usan otro secreto",
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
                     ]
                   }
                 }
@@ -2080,7 +2299,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman tutor\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"correo\": \"tutor.{{sufijo}}@prueba.udea.edu.co\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman tutor\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"correo\": \"tutor.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2125,7 +2344,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman estudiante\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.udea.edu.co\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman estudiante\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2170,7 +2389,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Duplicada\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.udea.edu.co\",\n  \"contrasena\": \"Prueba1234\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Duplicada\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"

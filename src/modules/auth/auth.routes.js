@@ -6,6 +6,8 @@ const router = Router();
 
 router.post("/registro", ctrl.registrar);
 router.post("/login", ctrl.iniciarSesion);
+router.post("/google", ctrl.iniciarConGoogle);
+router.post("/google/registro", ctrl.registrarConGoogle);
 router.get("/perfil", autenticar, ctrl.obtenerPerfil);
 
 export default router;

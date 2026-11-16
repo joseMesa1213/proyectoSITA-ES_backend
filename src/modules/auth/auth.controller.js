@@ -14,3 +14,13 @@ export async function obtenerPerfil(req, res) {
   const data = await authService.obtenerPerfil(req.usuario.id);
   res.json({ ok: true, data });
 }
+
+export async function iniciarConGoogle(req, res) {
+  const data = await authService.iniciarConGoogle(req.body);
+  res.json({ ok: true, data });
+}
+
+export async function registrarConGoogle(req, res) {
+  const data = await authService.registrarConGoogle(req.body);
+  res.status(201).json({ ok: true, data });
+}

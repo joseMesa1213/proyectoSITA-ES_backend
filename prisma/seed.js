@@ -20,7 +20,9 @@ import * as reservas from "../src/modules/reservas/reservas.service.js";
 import * as valoraciones from "../src/modules/valoraciones/valoraciones.service.js";
 
 const CONTRASENA = "Udea123.";
-const DOMINIO = "udea.edu.co";
+// Dominio ficticio (.test no existe en internet): así ninguna cuenta de demostración coincide con el
+// correo real de una persona de la UdeA, que podría entrar a ella con "Continuar con Google".
+const DOMINIO = "demo.sita-es.test";
 const PROGRAMA = "Ingeniería de Sistemas";
 const CEDULA = 1; // tbl_tipo_documento: Cédula de Ciudadanía
 
@@ -151,7 +153,7 @@ const proxima = (dia, semanas = 0) =>
 const anterior = (dia, semanas = 0) =>
   sumarDias(fechaHoy, -(((fechaHoy.getUTCDay() - DIAS.indexOf(dia) + 7) % 7 || 7) + 7 * semanas));
 
-// "Valentina", "Restrepo Ochoa" → valentina.restrepo@udea.edu.co
+// "Valentina", "Restrepo Ochoa" → valentina.restrepo@demo.sita-es.test
 const correo = (nombre, apellido) =>
   `${nombre.split(" ")[0]}.${apellido.split(" ")[0]}@${DOMINIO}`
     .toLowerCase()

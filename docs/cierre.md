@@ -97,9 +97,13 @@ Contraseña de todas las cuentas: `Udea123.`
 
 | Rol | Correo |
 |---|---|
-| Administrador | `coordinacion.sita-es@udea.edu.co` |
-| Tutores | `valentina.restrepo@udea.edu.co`, `santiago.zapata@udea.edu.co`, `mariana.londono@udea.edu.co`, `julian.cardona@udea.edu.co`, `daniela.henao@udea.edu.co` |
-| Estudiantes | `camila.gomez@udea.edu.co`, `andres.ospina@udea.edu.co`, `sara.mejia@udea.edu.co`, `tomas.arango@udea.edu.co`, `isabella.velez@udea.edu.co`, `juan.rios@udea.edu.co`, entre otros |
+| Administrador | `coordinacion.sita-es@demo.sita-es.test` |
+| Tutores | `valentina.restrepo@demo.sita-es.test`, `santiago.zapata@demo.sita-es.test`, `mariana.londono@demo.sita-es.test`, `julian.cardona@demo.sita-es.test`, `daniela.henao@demo.sita-es.test` |
+| Estudiantes | `camila.gomez@demo.sita-es.test`, `andres.ospina@demo.sita-es.test`, `sara.mejia@demo.sita-es.test`, `tomas.arango@demo.sita-es.test`, `isabella.velez@demo.sita-es.test`, `juan.rios@demo.sita-es.test`, entre otros |
+
+Las cuentas usan el dominio ficticio `@demo.sita-es.test` (`.test` no existe en internet) para que ninguna coincida con el
+correo real de una persona de la UdeA, que podría entrar a ella con "Continuar con Google". Al principio usaban
+`@udea.edu.co`; en una base ya cargada se cambian con [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql).
 
 > ⚠️ Estas cuentas son públicas (están en el repositorio). Si la plataforma llega a usarse con datos reales, hay que cambiar la contraseña del administrador y desactivar o borrar las cuentas de demostración.
 
@@ -124,6 +128,8 @@ Contraseña de todas las cuentas: `Udea123.`
 
 - [x] **Colección de Postman**: exportarla a `docs/` con dos entornos (`local` → `http://localhost:3000/api` y `render` → `https://proyectosita-es-backend.onrender.com/api`), con casos correctos y de error por endpoint.
 - [ ] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia con y sin errores de escritura, cada botón del menú y preguntas libres.
+- [ ] **Cambiar el dominio de las cuentas de demostración en producción**: correr [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql)
+  en el SQL Editor de Supabase (lo hace el dueño de la BD) y avisar al equipo los correos nuevos.
 - [x] **Rutas internas del frontend en Render**: regla *Rewrite* `/*` → `/index.html` configurada (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
 
 ---
