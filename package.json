@@ -12,7 +12,9 @@
     "db:status": "prisma migrate status",
     "db:studio": "prisma studio",
     "db:seed": "node prisma/seed.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "respaldo": "node scripts/respaldo.js",
+    "crear-admin": "node scripts/crear-admin.js"
   },
   "keywords": [],
   "author": "",

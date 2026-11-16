@@ -1,12 +1,12 @@
 # Pruebas de la API con Postman
 
-Colección: `SITA-ES.postman_collection.json` (132 peticiones, 327 verificaciones).
+Colección: `SITA-ES.postman_collection.json` (152 peticiones, 383 verificaciones).
 Entornos: `SITA-ES-local.postman_environment.json` y `SITA-ES-render.postman_environment.json`.
 
 | Carpeta | Qué prueba | Dónde correrla |
 |---|---|---|
-| **1. Humo (solo lectura)** | Salud, catálogos, login, perfil, consultas públicas y privadas, filtros, errores 400/401/403/404, permisos por rol y errores del inicio de sesión con Google. No escribe nada. | Local y Render |
-| **2. Flujo completo (solo local)** | Registro, materias, recursos, tutorías, horarios, reservas, cupos, cruces, cancelar, completar, valorar y desactivar. Crea datos de prueba. | Solo en una base de datos de pruebas |
+| **1. Humo (solo lectura)** | Salud, catálogos, login, perfil, consultas públicas y privadas, filtros, errores 400/401/403/404, permisos por rol, errores del inicio de sesión con Google y consultas de solicitudes de tutor. No escribe nada. | Local y Render |
+| **2. Flujo completo (solo local)** | Registro con "Quiero ser tutor", solicitud aprobada y rechazada, compatibilidad de `id_rol`, materias, recursos, tutorías, horarios, reservas, cupos, cruces, cancelar, completar, valorar y desactivar. Crea datos de prueba. | Solo en una base de datos de pruebas |
 
 Todas las respuestas se revisan también con una prueba general: `ok: true` si la respuesta es exitosa, y `ok: false` con `error.mensaje` si es un error.
 

@@ -4,11 +4,17 @@
 export const ESTADO = Object.freeze({
   ACTIVO: 1,
   INACTIVO: 2,
-  PENDIENTE: 3, // reservado; el MVP no lo usa
+  PENDIENTE: 3, // solicitudes de tutor en espera de revisión
   CANCELADO: 4,
   COMPLETADO: 5,
+  APROBADO: 6, // solicitud de tutor aprobada
+  RECHAZADO: 7, // solicitud de tutor rechazada
 });
 
+// id_rol es un NIVEL de permisos, no una elección del usuario:
+//   1 Estudiante: todos al registrarse (buscar, reservar, valorar).
+//   2 Tutor: estudiante + tutor; se llega cuando un administrador aprueba su solicitud.
+//   3 Administrador: se crea con `npm run crear-admin`, nunca por la API.
 export const ROL = Object.freeze({
   ESTUDIANTE: 1,
   TUTOR: 2,

@@ -18,6 +18,7 @@ import * as materias from "../src/modules/materias/materias.service.js";
 import * as tutorias from "../src/modules/tutorias/tutorias.service.js";
 import * as reservas from "../src/modules/reservas/reservas.service.js";
 import * as valoraciones from "../src/modules/valoraciones/valoraciones.service.js";
+import * as solicitudes from "../src/modules/solicitudes/solicitudes.service.js";
 
 const CONTRASENA = "Udea123.";
 // Dominio ficticio (.test no existe en internet): así ninguna cuenta de demostración coincide con el
@@ -161,15 +162,20 @@ const correo = (nombre, apellido) =>
     .replace(/[̀-ͯ]/g, "");
 
 let documento = 1036600000;
-async function registrar([nombre, apellido, semestre], id_rol) {
+// Registro igual al de la app: todos entran como estudiantes; quien quiere ser tutor lo marca
+async function registrar([nombre, apellido, semestre], { quieroSerTutor = false, motivo } = {}) {
   const { usuario } = await auth.registrar({
     nombre, apellido, id_tipo_documento: CEDULA, num_documento: String(++documento),
     correo: correo(nombre, apellido), contrasena: CONTRASENA,
-    celular: `300${String(documento).slice(-7)}`, id_rol,
+    celular: `300${String(documento).slice(-7)}`,
     nombre_programa: PROGRAMA, semestre,
+    quiero_ser_tutor: quieroSerTutor, motivo_tutor: motivo,
   });
   return usuario;
 }
+
+// Última solicitud de tutor del usuario (para aprobarla o rechazarla)
+const solicitudDe = (idUsuario) => solicitudes.obtenerMia(idUsuario);
 
 // Toma n estudiantes rotando la lista, para repartir las reservas
 const tomar = (lista, desde, n) => Array.from({ length: n }, (_, i) => lista[(desde + i) % lista.length]);
@@ -186,13 +192,30 @@ async function main() {
     throw new Error(`Ya existen materias con estos códigos: ${yaExisten.map((m) => m.codigo).join(", ")}`);
   }
 
-  console.log("Usuarios...");
-  const admin = await registrar(ADMIN, ROL.ESTUDIANTE);
+  console.log("Usuarios y solicitudes de tutor...");
+  // En la app el administrador se crea con `npm run crear-admin`; aquí se registra y se sube de nivel
+  // directamente para que use la misma contraseña de demostración que las demás cuentas.
+  const admin = await registrar(ADMIN);
   await prisma.usuario.update({ where: { id: admin.id }, data: { id_rol: ROL.ADMINISTRADOR } });
+
+  // Tutores: se registran pidiendo ser tutores y el administrador aprueba su solicitud (id_rol 1 → 2)
   const tutores = [];
-  for (const t of TUTORES) tutores.push(await registrar(t, ROL.TUTOR));
+  for (const t of TUTORES) {
+    const tutor = await registrar(t, { quieroSerTutor: true, motivo: "Quiero apoyar a mis compañeros en las materias que domino." });
+    await solicitudes.aprobar((await solicitudDe(tutor.id)).id, admin.id, { observacion: "Buen desempeño en las materias." });
+    tutores.push(tutor);
+  }
   const estudiantes = [];
-  for (const e of ESTUDIANTES) estudiantes.push(await registrar(e, ROL.ESTUDIANTE));
+  for (const e of ESTUDIANTES) estudiantes.push(await registrar(e));
+
+  // Para ver el panel del administrador: dos solicitudes pendientes y una rechazada (que puede volver a solicitar)
+  const [pendiente1, pendiente2, rechazado] = estudiantes.slice(-3);
+  await solicitudes.crear({ id: pendiente1.id, rol: ROL.ESTUDIANTE }, { motivo: "Me fue muy bien en Cálculo Diferencial y quiero ayudar." });
+  await solicitudes.crear({ id: pendiente2.id, rol: ROL.ESTUDIANTE }, { motivo: "Puedo dar tutorías de programación." });
+  await solicitudes.crear({ id: rechazado.id, rol: ROL.ESTUDIANTE }, {});
+  await solicitudes.rechazar((await solicitudDe(rechazado.id)).id, admin.id, {
+    observacion: "Cuéntenos qué materias domina y vuelva a enviar la solicitud.",
+  });
 
   console.log("Materias y recursos...");
   const materiaPorCodigo = {};
@@ -288,7 +311,10 @@ Semilla aplicada:
 Cuentas (contraseña: ${CONTRASENA})
   Admin:       ${correoAdmin}
   Tutores:     ${tutores.map((t) => t.correo).join(", ")}
-  Estudiantes: ${estudiantes.map((e) => e.correo).join(", ")}`);
+  Estudiantes: ${estudiantes.map((e) => e.correo).join(", ")}
+
+Solicitudes de tutor: ${tutores.length} aprobadas, pendientes de ${pendiente1.correo} y ${pendiente2.correo},
+  rechazada de ${rechazado.correo}`);
 }
 
 try {

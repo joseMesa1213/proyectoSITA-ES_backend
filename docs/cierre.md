@@ -22,9 +22,9 @@ SITA-ES (Sistema de Tutorías Académicas) permite que estudiantes de la univers
 | Rol | Qué puede hacer |
 |---|---|
 | **Visitante** (sin sesión) | Ver el catálogo de tutorías con filtros por materia, nivel y modalidad; ver el detalle con horarios y valoraciones; registrarse. |
-| **Estudiante** | Reservar un cupo eligiendo horario semanal y fecha de la sesión; ver su agenda (próximas, completadas, canceladas); cancelar; calificar de 1 a 5 una sesión completada. |
-| **Tutor** | Todo lo del estudiante (en tutorías de otros) y además: asociarse a materias, publicar y editar tutorías, agregar o desactivar horarios con su salón o enlace, ver las reservas recibidas por sesión y marcarlas como completadas o canceladas. |
-| **Administrador** | Gestionar el catálogo de materias y los recursos (salones físicos y enlaces virtuales con capacidad). No reserva. |
+| **Estudiante** (todos al registrarse) | Reservar un cupo eligiendo horario semanal y fecha de la sesión; ver su agenda (próximas, completadas, canceladas); cancelar; calificar de 1 a 5 una sesión completada; **solicitar ser tutor** (al registrarse o desde *Mi perfil*). |
+| **Tutor** (solicitud aprobada) | Todo lo del estudiante (en tutorías de otros) y además: asociarse a materias, publicar y editar tutorías, agregar o desactivar horarios con su salón o enlace, ver las reservas recibidas por sesión y marcarlas como completadas o canceladas. |
+| **Administrador** | Gestionar el catálogo de materias y los recursos (salones físicos y enlaces virtuales con capacidad) y **aprobar o rechazar las solicitudes para ser tutor**. No reserva. Se crea con `npm run crear-admin`. |
 | **Todos** | **Asistente SITA**: chat guiado que busca tutorías por materia y responde preguntas frecuentes según el rol (ver §4). |
 
 ---
@@ -52,11 +52,12 @@ Navegador ──► Frontend (Render, Static Site)         React 19 · Vite · T
 | Tema | Decisión |
 |---|---|
 | Base de datos | PostgreSQL en Supabase. `prisma/schema.prisma` es la fuente de verdad; nadie modifica tablas a mano. |
-| Roles | Solo `id_rol` (1 Estudiante, 2 Tutor, 3 Administrador). El administrador se crea directamente en la BD. |
+| Roles | `id_rol` es un **nivel de permisos**: 1 Estudiante (todos), 2 Estudiante + Tutor (solicitud aprobada), 3 Administrador (`npm run crear-admin`). Nadie elige rol al registrarse. El rol se lee de la BD en cada petición, así que aprobar o inactivar aplica de inmediato. |
+| Ser tutor | Se solicita (`tbl_solicitud_tutor`, con historial) y lo aprueba un administrador. Una sola solicitud pendiente por usuario (índice único parcial). |
 | Horarios | `tbl_horario` es un bloque **semanal** (ej. lunes 10:00–12:00); la reserva guarda el día concreto en `fecha_sesion`. |
 | Recursos | El salón o enlace pertenece al **horario**, no a cada reserva; la reserva lo copia. |
 | Tutores | También pueden reservar, pero no en sus propias tutorías. |
-| Estados de reserva | `ACTIVO → COMPLETADO` (lo marca el tutor cuando la sesión terminó) o `ACTIVO → CANCELADO`. `PENDIENTE` no se usa. |
+| Estados de reserva | `ACTIVO → COMPLETADO` (lo marca el tutor cuando la sesión terminó) o `ACTIVO → CANCELADO`. `PENDIENTE`, `APROBADO` y `RECHAZADO` se usan en las solicitudes de tutor. |
 | Borrado | No hay borrado físico: se cambia `id_estado`. |
 | Datos en uso | Desactivar un horario o inactivar una tutoría cancela las reservas de sesiones que aún no empiezan. |
 | Concurrencia | Transacciones con `SELECT ... FOR UPDATE` en el orden fijo `usuario → tutoría → horario → recurso`. |
@@ -72,6 +73,7 @@ Las reglas completas (cupos, cruces de horario, capacidad del salón, modalidad 
 | `0_init` | Script original de la BD, registrado como línea base. |
 | `20260929000000_contrasena_y_fecha_sesion` | Agrega `contrasena_hash` al usuario y `fecha_sesion` a la reserva. |
 | `20261102000000_recurso_en_horario` | El recurso pasa a ser del horario (`tbl_horario.id_recurso`). |
+| `20261116000000_solicitudes_tutor` | Tabla `tbl_solicitud_tutor`, estados Aprobado (6) y Rechazado (7). Los tutores existentes quedan con solicitud aprobada. Solo agrega datos. |
 
 ---
 
@@ -116,10 +118,10 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 | Limitación | Situación actual |
 |---|---|
 | Recuperación de contraseña | No existe. La coordinación debe restablecerla desde la BD. |
-| Cambio de rol | No hay pantalla: el administrador se crea y los roles se cambian desde Supabase o Prisma Studio. |
+| Cambio de rol | Ser tutor: solicitud que aprueba un administrador. Administradores: `npm run crear-admin` (consola). No hay forma de quitarle a alguien el rol de tutor desde la app. |
 | Notificaciones | No se envían correos ni recordatorios de las sesiones. |
-| Asistente | Busca por **materia**, no por tema ("derivadas" o "SQL" no encuentran nada aunque existan tutorías con ese título). |
-| Pruebas automatizadas | No hay pruebas unitarias; la API se verifica con la colección de Postman en `docs/postman/` (127 peticiones, 313 verificaciones). |
+| Asistente | Entiende materias, temas de un diccionario ("derivadas", "SQL") y filtros (modalidad, nivel, día), pero no frases complejas: no usa IA. |
+| Pruebas automatizadas | Pruebas unitarias con Vitest en backend (`npm test`) y frontend (asistente); la API se verifica con la colección de Postman en `docs/postman/` (152 peticiones, 383 verificaciones). No hay pruebas de interfaz automatizadas. |
 | Plan gratuito de Render | El backend se duerme sin uso y la primera petición es lenta. |
 
 ---
@@ -130,6 +132,8 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 - [ ] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia con y sin errores de escritura, cada botón del menú y preguntas libres.
 - [ ] **Cambiar el dominio de las cuentas de demostración en producción**: correr [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql)
   en el SQL Editor de Supabase (lo hace el dueño de la BD) y avisar al equipo los correos nuevos.
+- [ ] **Publicar las solicitudes para ser tutor**: respaldo, migración y orden de publicación en
+  [`docs/despliegue-solicitudes-tutor.md`](despliegue-solicitudes-tutor.md). Después, quitar la compatibilidad de `id_rol` en el registro.
 - [x] **Rutas internas del frontend en Render**: regla *Rewrite* `/*` → `/index.html` configurada (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
 
 ---

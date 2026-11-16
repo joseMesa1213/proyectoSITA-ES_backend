@@ -6,7 +6,7 @@ import { verificarCredencialGoogle } from "../../lib/google.js";
 import { env } from "../../config/env.js";
 import { ESTADO, ROL } from "../../constants/catalogos.js";
 import { AppError } from "../../utils/AppError.js";
-import { aEntero, requerirCampos, validarOpcion } from "../../utils/validar.js";
+import { aEntero, requerirCampos, textoOpcional } from "../../utils/validar.js";
 
 const incluirPerfil = {
   rol: true,
@@ -19,18 +19,37 @@ const firmarToken = (usuario) =>
     expiresIn: env.jwtExpiresIn,
   });
 
+const esVerdadero = (valor) => valor === true || valor === "true";
+
 /**
- * Crea el usuario con su fila de estudiante y devuelve la sesión.
+ * ¿La persona pidió ser tutor al registrarse? El rol ya NO se elige: todos entran como estudiantes
+ * y "Quiero ser tutor" (quiero_ser_tutor) crea una solicitud pendiente que revisa un administrador.
+ *
+ * COMPATIBILIDAD con el frontend anterior, que todavía envía id_rol mientras se publica el nuevo.
+ * Quitar el bloque `if (datos.id_rol !== undefined)` cuando el frontend nuevo esté publicado
+ * (después id_rol se puede rechazar siempre con 400):
+ *   id_rol 1 → estudiante; id_rol 2 → estudiante + solicitud de tutor pendiente; otro → 400.
+ */
+function quiereSerTutor(datos) {
+  if (datos.id_rol !== undefined) {
+    const idRol = Number(datos.id_rol);
+    if (idRol === ROL.TUTOR) return true;
+    if (idRol !== ROL.ESTUDIANTE) throw new AppError(400, "El rol no se elige en el registro");
+  }
+  return esVerdadero(datos.quiero_ser_tutor);
+}
+
+/**
+ * Crea el usuario (siempre ESTUDIANTE) con su fila de estudiante y, si la pidió, su solicitud de
+ * tutor pendiente, todo en una sola operación. Devuelve la sesión.
  * La usan el registro normal y el registro con Google: así ambos validan lo mismo.
  * Correo o documento repetidos → 409 (P2002 en el manejador de errores).
  */
 async function crearUsuario(datos, contrasena) {
   requerirCampos(datos, [
-    "nombre", "apellido", "id_tipo_documento", "num_documento", "correo",
-    "id_rol", "nombre_programa", "semestre",
+    "nombre", "apellido", "id_tipo_documento", "num_documento", "correo", "nombre_programa", "semestre",
   ]);
-  // El administrador no se registra por la API: se crea directamente en la BD.
-  validarOpcion(Number(datos.id_rol), [ROL.ESTUDIANTE, ROL.TUTOR], "id_rol");
+  const solicitaTutor = quiereSerTutor(datos);
 
   const usuario = await prisma.usuario.create({
     data: {
@@ -41,7 +60,8 @@ async function crearUsuario(datos, contrasena) {
       correo: String(datos.correo).trim().toLowerCase(),
       celular: datos.celular ?? null,
       contrasena_hash: await bcrypt.hash(String(contrasena), 10),
-      id_rol: Number(datos.id_rol),
+      // Todos entran como estudiantes; el administrador se crea con `npm run crear-admin`
+      id_rol: ROL.ESTUDIANTE,
       id_estado: ESTADO.ACTIVO,
       estudiante: {
         create: {
@@ -49,11 +69,17 @@ async function crearUsuario(datos, contrasena) {
           semestre: aEntero(datos.semestre, "semestre"),
         },
       },
+      ...(solicitaTutor && {
+        solicitudesTutor: {
+          create: { id_estado: ESTADO.PENDIENTE, motivo: textoOpcional(datos.motivo_tutor) },
+        },
+      }),
     },
     include: incluirPerfil,
   });
 
-  return { token: firmarToken(usuario), usuario };
+  // solicitud_tutor_pendiente: el frontend lo usa para avisar "su solicitud quedó en revisión"
+  return { token: firmarToken(usuario), usuario, solicitud_tutor_pendiente: solicitaTutor };
 }
 
 export async function registrar(datos) {
@@ -174,8 +200,8 @@ export async function iniciarConGoogle({ credential } = {}) {
 
 /**
  * POST /api/auth/google/registro — público.
- * Body: { token_registro, id_rol, id_tipo_documento, num_documento, nombre_programa, semestre,
- *         celular?, nombre?, apellido? }
+ * Body: { token_registro, id_tipo_documento, num_documento, nombre_programa, semestre,
+ *         celular?, nombre?, apellido?, quiero_ser_tutor?, motivo_tutor? }
  * El CORREO sale siempre del token firmado (nunca del body). Nombre y apellido se pueden corregir.
  * Token inválido o vencido → 401. El resto de validaciones son las del registro normal.
  *

@@ -734,7 +734,9 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                      "// El rol no se elige al registrarse; id_rol 1 y 2 se aceptan solo por compatibilidad con el frontend anterior",
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
+                      "pm.test(\"Mensaje: el rol no se elige\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"El rol no se elige en el registro\"));"
                     ]
                   }
                 }
@@ -762,7 +764,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Corta\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"123\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Corta\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"123\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -893,7 +895,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"id_rol\": 1\n}",
+                  "raw": "{}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -937,7 +939,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"token_registro\": \"{{token_falso}}\",\n  \"id_rol\": 1,\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_falso}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -981,7 +983,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"token_registro\": \"{{token_estudiante}}\",\n  \"id_rol\": 1,\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_estudiante}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2040,6 +2042,354 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Solicitudes de tutor",
+          "description": "Solo lectura: consultas y errores de permisos (ninguna petición crea ni cambia datos).",
+          "item": [
+            {
+              "name": "Mi solicitud (estudiante) → 200",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "mia"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"null o una solicitud\", () => { const d = pm.response.json().data; pm.expect(d === null || typeof d.estado === \"string\").to.be.true; });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Mi solicitud sin sesión → 401",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "mia"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Administrador lista pendientes → 200",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Todas pendientes\", () => pm.response.json().data.forEach((s) => pm.expect(s.estado).to.eql(\"Pendiente\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Administrador lista historial → 200",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor?estado=historial",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ],
+                  "query": [
+                    {
+                      "key": "estado",
+                      "value": "historial"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Solo aprobadas o rechazadas\", () => pm.response.json().data.forEach((s) => pm.expect([\"Aprobado\", \"Rechazado\"]).to.include(s.estado)));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Estado de lista inválido → 400",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor?estado=todas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ],
+                  "query": [
+                    {
+                      "key": "estado",
+                      "value": "todas"
+                    }
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Estudiante no lista solicitudes → 403",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Estudiante no aprueba → 403",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/1/aprobar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "1",
+                    "aprobar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Administrador no solicita ser tutor → 403",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Tutor ya es tutor → 409",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_tutor}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+                      "pm.test(\"Mensaje: ya es tutor\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"Usted ya es tutor\"));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -2299,7 +2649,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman tutor\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"correo\": \"tutor.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman tutor\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"correo\": \"tutor.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3,\n  \"quiero_ser_tutor\": true,\n  \"motivo_tutor\": \"Quiero dar tutorías de prueba\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2314,9 +2664,210 @@
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
-                      "pm.test(\"Rol 2\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(2));",
+                      "// Todos entran como estudiantes: ser tutor queda como solicitud pendiente",
+                      "pm.test(\"Entra como estudiante (rol 1)\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));",
+                      "pm.test(\"Con solicitud de tutor pendiente\", () => pm.expect(pm.response.json().data.solicitud_tutor_pendiente).to.eql(true));",
                       "pm.collectionVariables.set(\"token_tutor_nuevo\", pm.response.json().data.token);",
                       "pm.collectionVariables.set(\"id_tutor_nuevo\", pm.response.json().data.usuario.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Solicitud del tutor nuevo: pendiente",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_tutor_nuevo}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "mia"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Pendiente\", () => pm.expect(pm.response.json().data.estado).to.eql(\"Pendiente\"));",
+                      "pm.collectionVariables.set(\"id_solicitud_tutor\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Tutor nuevo todavía no publica → 403",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_tutor_nuevo}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/materias/mias",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "materias",
+                    "mias"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Administrador aprueba la solicitud",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/{{id_solicitud_tutor}}/aprobar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "{{id_solicitud_tutor}}",
+                    "aprobar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacion\": \"Aprobada en la prueba de Postman\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Aprobada\", () => pm.expect(pm.response.json().data.estado).to.eql(\"Aprobado\"));",
+                      "pm.test(\"El usuario sube a tutor (rol 2)\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(2));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Aprobar otra vez → 409",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/{{id_solicitud_tutor}}/aprobar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "{{id_solicitud_tutor}}",
+                    "aprobar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Mismo token del tutor nuevo ya es tutor (sin volver a iniciar sesión)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_tutor_nuevo}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/perfil",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "perfil"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "// autenticar lee el rol de la BD en cada petición",
+                      "pm.test(\"Rol 2\", () => pm.expect(pm.response.json().data.id_rol).to.eql(2));"
                     ]
                   }
                 }
@@ -2344,7 +2895,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman estudiante\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman estudiante\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2362,6 +2913,273 @@
                       "pm.test(\"Rol 1\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));",
                       "pm.collectionVariables.set(\"token_estudiante_nuevo\", pm.response.json().data.token);",
                       "pm.collectionVariables.set(\"id_estudiante_nuevo\", pm.response.json().data.usuario.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Estudiante nuevo solicita ser tutor desde su perfil",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante_nuevo}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"motivo\": \"Solicitud de prueba\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Pendiente\", () => pm.expect(pm.response.json().data.estado).to.eql(\"Pendiente\"));",
+                      "pm.collectionVariables.set(\"id_solicitud_estudiante\", pm.response.json().data.id);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Segunda solicitud pendiente → 409",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante_nuevo}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Rechazar sin observación → 400",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/{{id_solicitud_estudiante}}/rechazar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "{{id_solicitud_estudiante}}",
+                    "rechazar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Administrador rechaza la solicitud",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_admin}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/{{id_solicitud_estudiante}}/rechazar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "{{id_solicitud_estudiante}}",
+                    "rechazar"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacion\": \"Rechazada en la prueba de Postman\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Rechazada\", () => pm.expect(pm.response.json().data.estado).to.eql(\"Rechazado\"));",
+                      "pm.test(\"Sigue siendo estudiante (rol 1)\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "El estudiante ve el motivo del rechazo",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante_nuevo}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "mia"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Con observación\", () => pm.expect(pm.response.json().data.observacion).to.include(\"Rechazada\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Compatibilidad: registro con id_rol 2 → estudiante + solicitud",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/registro",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "registro"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman compatibilidad\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}3\",\n  \"correo\": \"compat.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// Frontend anterior: id_rol 2 ya no da rol de tutor, crea la solicitud pendiente",
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Rol 1\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));",
+                      "pm.test(\"Con solicitud pendiente\", () => pm.expect(pm.response.json().data.solicitud_tutor_pendiente).to.eql(true));"
                     ]
                   }
                 }
@@ -2389,7 +3207,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Duplicada\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"id_rol\": 1,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Duplicada\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
