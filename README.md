@@ -170,9 +170,8 @@ y los administradores no pueden entrar con Google.
 - **Aprobar** sube `id_rol` de 1 a 2 en la misma transacción (a un administrador no se le cambia). **Rechazar** exige
   una observación, que el usuario ve en su perfil; puede volver a solicitar.
 - Si dos administradores revisan a la vez, `UPDATE ... WHERE id_estado = PENDIENTE` deja pasar solo a uno (el otro, 409).
-- **Compatibilidad temporal:** el frontend anterior envía `id_rol` al registrarse. `id_rol 1` → estudiante;
-  `id_rol 2` → estudiante + solicitud pendiente; otro → 400 "El rol no se elige en el registro". Se quita cuando el
-  frontend nuevo esté publicado (función `quiereSerTutor` en `auth.service.js`).
+- Si el registro (normal o con Google) trae `id_rol`, con cualquier valor, responde **400 "El rol no se elige en el
+  registro"** y no crea nada (función `quiereSerTutor` en `auth.service.js`).
 
 ### Salones y cruces de horario
 - El **recurso (salón o enlace) es del horario**, no de cada estudiante: el tutor lo elige al crear el bloque semanal y la reserva lo copia.

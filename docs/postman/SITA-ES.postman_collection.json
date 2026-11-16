@@ -734,7 +734,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "// El rol no se elige al registrarse; id_rol 1 y 2 se aceptan solo por compatibilidad con el frontend anterior",
+                      "// El rol no se elige al registrarse: cualquier id_rol en el body responde 400",
                       "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
                       "pm.test(\"Mensaje: el rol no se elige\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"El rol no se elige en el registro\"));"
                     ]
@@ -3141,7 +3141,7 @@
               ]
             },
             {
-              "name": "Compatibilidad: registro con id_rol 2 → estudiante + solicitud",
+              "name": "Registro con id_rol 2 → 400",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3176,10 +3176,51 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "// Frontend anterior: id_rol 2 ya no da rol de tutor, crea la solicitud pendiente",
-                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
-                      "pm.test(\"Rol 1\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));",
-                      "pm.test(\"Con solicitud pendiente\", () => pm.expect(pm.response.json().data.solicitud_tutor_pendiente).to.eql(true));"
+                      "// Ya no hay compatibilidad con el frontend anterior: enviar id_rol (aunque sea 1 o 2) responde 400",
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
+                      "pm.test(\"Mensaje: el rol no se elige\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"El rol no se elige en el registro\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "El registro rechazado no creó la cuenta → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"compat.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401 (la cuenta no existe)\", () => pm.response.to.have.status(401));"
                     ]
                   }
                 }
