@@ -23,6 +23,8 @@ npm install                 # instala y genera el cliente Prisma (postinstall)
 cp .env.example .env        # completar DATABASE_URL, DIRECT_URL y JWT_SECRET
 npm run dev                 # http://localhost:3000/api/salud
 npm test                    # pruebas automáticas (Vitest), no usan la base de datos
+npm run crear-admin         # crea un administrador (pide confirmación y datos por consola)
+npm run respaldo            # respaldo de la base del .env con pg_dump en Docker (ver §6)
 ```
 
 Las URLs de conexión están en Supabase → **Project Settings → Database → Connection string**:
@@ -43,6 +45,7 @@ prisma/
   schema.prisma            ← fuente de verdad del modelo de datos
   migrations/              ← historial de cambios a la BD (versionado en Git)
 prisma.config.ts           ← config de la CLI de Prisma
+scripts/                   ← tareas de consola: crear-admin.js, respaldo.js
 src/
   server.js                ← arranca el servidor
   app.js                   ← express, cors, json, rutas, errores
@@ -102,6 +105,8 @@ Desde el service: `throw new AppError(status, "mensaje", detalles?)`. No hace fa
 
 ### Autenticación
 Header `Authorization: Bearer <token>`. Tras `autenticar`, `req.usuario = { id, rol }`. El token dura `JWT_EXPIRES_IN` (8h por defecto).
+**El rol y el estado se leen de la BD en cada petición** (no del token): al aprobar una solicitud de tutor o inactivar
+a alguien, el cambio aplica en la siguiente petición, sin volver a iniciar sesión. Usuario inactivo o borrado → 401.
 `autenticar` solo acepta tokens de sesión (con `id` y `rol` numéricos): cualquier otro JWT firmado, como el de registro con Google, responde 401.
 
 ### Inicio de sesión con Google
@@ -146,13 +151,28 @@ y los administradores no pueden entrar con Google.
 
 ## 4. Reglas de negocio
 
-- **Roles:** 1 Estudiante · 2 Tutor · 3 Administrador. El registro solo permite 1 o 2; el administrador se crea directamente en la BD.
-- Todo usuario registrado tiene fila en `tbl_estudiante` (programa y semestre).
+- **`id_rol` es un nivel de permisos, no una elección:** 1 Estudiante (todos al registrarse) · 2 Estudiante + Tutor
+  (cuando un administrador aprueba su solicitud) · 3 Administrador (solo con `npm run crear-admin`, nunca por la API).
+- El registro (normal y con Google) **no deja elegir rol**: quien quiere ser tutor marca "Quiero ser tutor"
+  (`quiero_ser_tutor`, `motivo_tutor?`) y se crea una solicitud pendiente. Ver *Solicitudes para ser tutor*.
+- Todo usuario registrado tiene fila en `tbl_estudiante` (programa y semestre). Los administradores creados con
+  `crear-admin` no la tienen: no reservan.
 - Un **tutor** solo publica tutorías de materias que tiene asociadas en `tbl_materia_x_tutor`.
 - Un **tutor también puede reservar**, pero no en sus propias tutorías.
 - `tbl_horario` es un bloque **semanal** (ej. Lunes 10:00–12:00). La reserva indica el día concreto con `fecha_sesion`, que debe caer en ese día de la semana.
-- **Reserva:** `ACTIVO → COMPLETADO` (lo marca el tutor) o `ACTIVO → CANCELADO`. `PENDIENTE` no se usa en el MVP.
+- **Reserva:** `ACTIVO → COMPLETADO` (lo marca el tutor) o `ACTIVO → CANCELADO`. `PENDIENTE` solo se usa en las solicitudes de tutor.
 - **Valoración:** solo quien reservó, solo si la reserva está `COMPLETADO`, una por reserva, calificación 1–5.
+
+### Solicitudes para ser tutor
+- `tbl_solicitud_tutor` guarda el historial: `PENDIENTE (3) → APROBADO (6)` o `PENDIENTE → RECHAZADO (7)`.
+- **Una sola pendiente por usuario**, garantizado por un índice único parcial en la BD (`uq_solicitud_tutor_pendiente`,
+  solo en la migración: Prisma no lo declara). Ya es tutor → 409.
+- **Aprobar** sube `id_rol` de 1 a 2 en la misma transacción (a un administrador no se le cambia). **Rechazar** exige
+  una observación, que el usuario ve en su perfil; puede volver a solicitar.
+- Si dos administradores revisan a la vez, `UPDATE ... WHERE id_estado = PENDIENTE` deja pasar solo a uno (el otro, 409).
+- **Compatibilidad temporal:** el frontend anterior envía `id_rol` al registrarse. `id_rol 1` → estudiante;
+  `id_rol 2` → estudiante + solicitud pendiente; otro → 400 "El rol no se elige en el registro". Se quita cuando el
+  frontend nuevo esté publicado (función `quiereSerTutor` en `auth.service.js`).
 
 ### Salones y cruces de horario
 - El **recurso (salón o enlace) es del horario**, no de cada estudiante: el tutor lo elige al crear el bloque semanal y la reserva lo copia.
@@ -216,13 +236,24 @@ Prefijo: `/api`. **Público** = sin token.
 | | `GET /reservas/tutor?fecha_sesion=` · `PATCH /reservas/:id/completar` | Tutor | ✅ |
 | **valoraciones** | `POST /valoraciones` | Estudiante o Tutor | ✅ |
 | | `GET /valoraciones/tutoria/:idTutoria` | Público | ✅ |
+| **solicitudes-tutor** | `POST /solicitudes-tutor` | Estudiante (el tutor recibe 409) | ✅ |
+| | `GET /solicitudes-tutor/mia` | Autenticado | ✅ |
+| | `GET /solicitudes-tutor?estado=pendientes\|historial` | Admin | ✅ |
+| | `PATCH /solicitudes-tutor/:id/aprobar` · `PATCH /solicitudes-tutor/:id/rechazar` | Admin | ✅ |
 
 ### Ejemplos de body
 ```jsonc
-// POST /auth/registro
+// POST /auth/registro  (sin rol: todos entran como estudiantes)
 { "nombre": "Ana", "apellido": "Gómez", "id_tipo_documento": 1, "num_documento": "1001",
   "correo": "ana@uni.edu.co", "contrasena": "minimo8chars", "celular": "3001234567",
-  "id_rol": 1, "nombre_programa": "Ingeniería de Sistemas", "semestre": 4 }
+  "nombre_programa": "Ingeniería de Sistemas", "semestre": 4,
+  "quiero_ser_tutor": true, "motivo_tutor": "Domino Cálculo Diferencial" }
+
+// POST /solicitudes-tutor  (desde el perfil)
+{ "motivo": "Domino Cálculo Diferencial" }
+
+// PATCH /solicitudes-tutor/:id/rechazar  (la observación es obligatoria al rechazar)
+{ "observacion": "Indique qué materias domina" }
 
 // POST /auth/google  (credential = ID token del botón de Google)
 { "credential": "eyJhbGciOiJSUzI1NiIs..." }
@@ -285,7 +316,23 @@ Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `co
 
 ### Otros
 - `npm run db:studio` → explorador visual de datos.
-- Para crear un administrador: registrar el usuario por la API y cambiar su `id_rol` a 3 desde Supabase o Prisma Studio.
+- **Crear un administrador:** `npm run crear-admin`. Usa la base del `.env`: muestra a qué servidor se conecta y pide
+  escribir `SI`; pregunta correo, nombre, documento y contraseña (no se ve al escribirla; mínimo 10 caracteres).
+  Si el correo ya existe, ofrece convertir esa cuenta en administrador. No hay ninguna ruta de la API para esto.
+- **Hacer tutor a alguien:** el administrador aprueba su solicitud en el panel *Solicitudes de tutor* (ya no se cambia
+  `id_rol` a mano).
+
+### Respaldo y restauración
+```bash
+npm run respaldo                       # respalda la base del .env (local)
+npm run respaldo -- .env.produccion    # respalda producción: hacerlo ANTES de cada migración
+```
+- Usa `pg_dump` 17 en Docker (no hay que instalar PostgreSQL); respalda servidores 15, 16 y 17. **Solo lee** la base.
+- Conecta por `DIRECT_URL` (5432; el pooler 6543 no sirve) y quita parámetros como `?pgbouncer=true`.
+- Solo el esquema `public` (tablas de SITA-ES y `_prisma_migrations`), sin los esquemas internos de Supabase.
+- La contraseña viaja como variable de entorno al contenedor: no queda en el historial de la terminal.
+- Queda en `respaldos/` (ignorado por git). **Contiene datos personales**: no subirlo ni compartirlo.
+- Restaurar: ver [docs/despliegue-solicitudes-tutor.md](docs/despliegue-solicitudes-tutor.md#si-hay-que-volver-atrás-restaurar-el-respaldo).
 
 ---
 
@@ -317,6 +364,8 @@ Variables de entorno en Render:
 - `DIRECT_URL` no hace falta en Render: solo la usa la CLI de Prisma. Las **migraciones no se aplican al desplegar**:
   el dueño de la BD las aplica desde su equipo (`npm run db:migrate`, §6) **antes** de fusionar el código que las necesita.
 - La raíz `/` responde `404 Ruta no encontrada` a propósito: todas las rutas están bajo `/api`.
+- **Solicitudes para ser tutor:** pasos de respaldo, migración, verificación y orden de publicación en
+  [docs/despliegue-solicitudes-tutor.md](docs/despliegue-solicitudes-tutor.md).
 - En el plan gratuito el servicio se duerme tras unos 15 minutos sin uso y la primera petición tarda entre 30 y 50 s.
 
 ---

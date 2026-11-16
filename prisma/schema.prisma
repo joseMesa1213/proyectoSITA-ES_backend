@@ -28,6 +28,7 @@ model Estado {
   tutorias   Tutoria[]
   horarios   Horario[]
   reservas   Reserva[]
+  solicitudesTutor SolicitudTutor[]
 
   @@map("tbl_estado")
 }
@@ -91,6 +92,7 @@ model Usuario {
   celular           String?   @db.VarChar(20)
   /// En desuso: el rol se determina con id_rol (3 = Administrador).
   es_administrador  Boolean   @default(false)
+  /// Nivel de permisos: 1 Estudiante (todos), 2 Estudiante + Tutor (solicitud aprobada), 3 Administrador.
   fecha_registro    DateTime? @default(now()) @db.Timestamp(6)
   id_estado         Int
   id_rol            Int
@@ -104,6 +106,8 @@ model Usuario {
   tutorias      Tutoria[]
   reservas      Reserva[]
   valoraciones  Valoracion[]
+  solicitudesTutor  SolicitudTutor[] @relation("solicitante")
+  revisionesTutor   SolicitudTutor[] @relation("revisor")
 
   @@map("tbl_usuario")
 }
@@ -202,4 +206,28 @@ model Valoracion {
   evaluador Usuario @relation(fields: [id_usuario_evaluador], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_valoracion_evaluador")
 
   @@map("tbl_valoracion")
+}
+
+// -----------------------------------------------------------------------------
+// Solicitudes para ser tutor
+// -----------------------------------------------------------------------------
+
+/// Historial de solicitudes: Pendiente (3) → Aprobado (6) o Rechazado (7). Al aprobarse, id_rol pasa de 1 a 2.
+/// Índice único parcial en la migración (Prisma no lo declara): una sola solicitud PENDIENTE por usuario.
+model SolicitudTutor {
+  id              Int       @id @default(autoincrement())
+  id_usuario      Int
+  id_estado       Int
+  motivo          String?
+  fecha_solicitud DateTime  @default(now()) @db.Timestamp(6)
+  id_revisor      Int?
+  fecha_revision  DateTime? @db.Timestamp(6)
+  observacion     String?
+
+  usuario Usuario  @relation("solicitante", fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_solicitud_tutor_usuario")
+  estado  Estado   @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitud_tutor_estado")
+  revisor Usuario? @relation("revisor", fields: [id_revisor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_solicitud_tutor_revisor")
+
+  @@index([id_usuario], map: "idx_solicitud_tutor_usuario")
+  @@map("tbl_solicitud_tutor")
 }

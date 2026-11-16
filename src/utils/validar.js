@@ -19,6 +19,9 @@ export function aEntero(valor, nombre) {
   return n;
 }
 
+// Texto opcional: sin espacios sobrantes; vacío o ausente → null.
+export const textoOpcional = (valor) => (valor === undefined || valor === null ? null : String(valor).trim() || null);
+
 // Lanza 400 si el valor no está en la lista permitida.
 export function validarOpcion(valor, opciones, nombre) {
   if (!opciones.includes(valor)) {

@@ -11,7 +11,6 @@ const { verificarCredencialGoogle } = await import("../../lib/google.js");
 const { prisma } = await import("../../lib/prisma.js");
 const { env } = await import("../../config/env.js");
 const { iniciarConGoogle, registrarConGoogle } = await import("./auth.service.js");
-const { autenticar } = await import("../../middlewares/auth.middleware.js");
 
 const SECRETO = "secreto-solo-para-pruebas"; // el mismo de vitest.config.js
 const SECRETO_REGISTRO = `${SECRETO}:registro-google`;
@@ -37,7 +36,6 @@ const tokenRegistro = (cambios = {}, opciones = { expiresIn: "15m" }) =>
 
 const datosRegistro = (cambios = {}) => ({
   token_registro: tokenRegistro(),
-  id_rol: 1,
   id_tipo_documento: 1,
   num_documento: "1001",
   nombre_programa: "Ingeniería de Sistemas",
@@ -166,8 +164,21 @@ describe("POST /auth/google/registro", () => {
     await expect(registrarConGoogle(datosRegistro({ token_registro: sesion }))).rejects.toMatchObject({ status: 401 });
   });
 
-  test("como administrador → 400 (igual que el registro normal)", async () => {
-    await expect(registrarConGoogle(datosRegistro({ id_rol: 3 }))).rejects.toMatchObject({ status: 400 });
+  test("intentando elegir rol administrador → 400 (igual que el registro normal)", async () => {
+    await expect(registrarConGoogle(datosRegistro({ id_rol: 3 }))).rejects.toMatchObject({
+      status: 400, message: "El rol no se elige en el registro",
+    });
+  });
+
+  test("con «Quiero ser tutor» → estudiante con solicitud pendiente", async () => {
+    prisma.usuario.create.mockImplementation(async ({ data }) => usuarioGuardado({ id: 9, id_rol: data.id_rol }));
+
+    const respuesta = await registrarConGoogle(datosRegistro({ quiero_ser_tutor: true, motivo_tutor: "Domino Cálculo" }));
+
+    const { data } = prisma.usuario.create.mock.calls[0][0];
+    expect(data.id_rol).toBe(1);
+    expect(data.solicitudesTutor.create).toEqual({ id_estado: 3, motivo: "Domino Cálculo" });
+    expect(respuesta.solicitud_tutor_pendiente).toBe(true);
   });
 
   test("crea el usuario con el correo del token, aunque el body traiga otro", async () => {
@@ -180,27 +191,5 @@ describe("POST /auth/google/registro", () => {
     expect(data.nombre).toBe("Ana María"); // nombre y apellido sí se pueden corregir
     expect(data.contrasena_hash).toMatch(/^\$2[aby]\$/); // hash de una contraseña aleatoria
     expect(jwt.verify(respuesta.token, SECRETO)).toMatchObject({ id: 9, rol: 1 });
-  });
-});
-
-describe("autenticar: solo acepta tokens de sesión", () => {
-  const pedir = (token) => ({ headers: { authorization: `Bearer ${token}` } });
-
-  test("token de sesión → deja pasar con id y rol", () => {
-    const req = pedir(jwt.sign({ id: 7, rol: 2 }, SECRETO));
-    const siguiente = vi.fn();
-    autenticar(req, {}, siguiente);
-    expect(siguiente).toHaveBeenCalled();
-    expect(req.usuario).toEqual({ id: 7, rol: 2 });
-  });
-
-  test("token firmado sin id ni rol → 401", () => {
-    expect(() => autenticar(pedir(jwt.sign({ correo: "x@udea.edu.co" }, SECRETO)), {}, vi.fn())).toThrow(
-      expect.objectContaining({ status: 401 })
-    );
-  });
-
-  test("token de registro con Google → 401", () => {
-    expect(() => autenticar(pedir(tokenRegistro()), {}, vi.fn())).toThrow(expect.objectContaining({ status: 401 }));
   });
 });

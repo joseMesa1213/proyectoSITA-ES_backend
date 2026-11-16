@@ -1,9 +1,17 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
+import { prisma } from "../lib/prisma.js";
+import { ESTADO } from "../constants/catalogos.js";
 import { AppError } from "../utils/AppError.js";
 
-// Exige header "Authorization: Bearer <token>" y deja el usuario en req.usuario = { id, rol }
-export function autenticar(req, _res, next) {
+/**
+ * Exige header "Authorization: Bearer <token>" y deja el usuario en req.usuario = { id, rol }.
+ *
+ * El rol y el estado se leen de la BASE DE DATOS en cada petición (no del token): así, cuando un
+ * administrador aprueba una solicitud de tutor o inactiva a alguien, el cambio aplica en la siguiente
+ * petición, sin volver a iniciar sesión. Es una consulta por clave primaria (muy barata).
+ */
+export async function autenticar(req, _res, next) {
   const [tipo, token] = (req.headers.authorization || "").split(" ");
   if (tipo !== "Bearer" || !token) {
     throw new AppError(401, "Token no proporcionado");
@@ -19,7 +27,15 @@ export function autenticar(req, _res, next) {
   if (!Number.isInteger(datos.id) || !Number.isInteger(datos.rol) || datos.tipo) {
     throw new AppError(401, "Token inválido o expirado");
   }
-  req.usuario = { id: datos.id, rol: datos.rol };
+
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: datos.id },
+    select: { id_rol: true, id_estado: true },
+  });
+  if (!usuario || usuario.id_estado !== ESTADO.ACTIVO) {
+    throw new AppError(401, "Su sesión ya no es válida. Inicie sesión de nuevo.");
+  }
+  req.usuario = { id: datos.id, rol: usuario.id_rol };
   next();
 }
 

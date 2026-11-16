@@ -6,6 +6,7 @@ import recursosRoutes from "./modules/recursos/recursos.routes.js";
 import tutoriasRoutes from "./modules/tutorias/tutorias.routes.js";
 import reservasRoutes from "./modules/reservas/reservas.routes.js";
 import valoracionesRoutes from "./modules/valoraciones/valoraciones.routes.js";
+import solicitudesRoutes from "./modules/solicitudes/solicitudes.routes.js";
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.use("/recursos", recursosRoutes);
 router.use("/tutorias", tutoriasRoutes);
 router.use("/reservas", reservasRoutes);
 router.use("/valoraciones", valoracionesRoutes);
+router.use("/solicitudes-tutor", solicitudesRoutes);
 
 export default router;
