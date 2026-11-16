@@ -22,20 +22,12 @@ const firmarToken = (usuario) =>
 const esVerdadero = (valor) => valor === true || valor === "true";
 
 /**
- * ¿La persona pidió ser tutor al registrarse? El rol ya NO se elige: todos entran como estudiantes
+ * ¿La persona pidió ser tutor al registrarse? El rol NO se elige: todos entran como estudiantes
  * y "Quiero ser tutor" (quiero_ser_tutor) crea una solicitud pendiente que revisa un administrador.
- *
- * COMPATIBILIDAD con el frontend anterior, que todavía envía id_rol mientras se publica el nuevo.
- * Quitar el bloque `if (datos.id_rol !== undefined)` cuando el frontend nuevo esté publicado
- * (después id_rol se puede rechazar siempre con 400):
- *   id_rol 1 → estudiante; id_rol 2 → estudiante + solicitud de tutor pendiente; otro → 400.
+ * Si el body trae id_rol (cualquier valor) → 400: así nadie puede intentar registrarse con otro nivel.
  */
 function quiereSerTutor(datos) {
-  if (datos.id_rol !== undefined) {
-    const idRol = Number(datos.id_rol);
-    if (idRol === ROL.TUTOR) return true;
-    if (idRol !== ROL.ESTUDIANTE) throw new AppError(400, "El rol no se elige en el registro");
-  }
+  if (datos.id_rol !== undefined) throw new AppError(400, "El rol no se elige en el registro");
   return esVerdadero(datos.quiero_ser_tutor);
 }
 

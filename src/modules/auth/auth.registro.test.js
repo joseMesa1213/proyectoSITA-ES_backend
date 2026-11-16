@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // Registro normal: todos entran como estudiantes; "Quiero ser tutor" crea una solicitud pendiente.
-// Incluye la COMPATIBILIDAD con el frontend anterior, que todavía envía id_rol.
+// Enviar id_rol (cualquier valor) responde 400: el rol nunca se elige al registrarse.
 vi.mock("../../lib/prisma.js", () => ({ prisma: { usuario: { create: vi.fn() } } }));
 
 const { prisma } = await import("../../lib/prisma.js");
@@ -20,7 +20,7 @@ beforeEach(() => {
   prisma.usuario.create.mockImplementation(async ({ data }) => ({ id: 5, id_rol: data.id_rol, correo: data.correo }));
 });
 
-describe("registro sin rol (frontend nuevo)", () => {
+describe("registro sin rol", () => {
   test("sin marcar «Quiero ser tutor» → estudiante sin solicitud", async () => {
     const respuesta = await registrar(datos());
     expect(guardado().id_rol).toBe(1);
@@ -42,24 +42,17 @@ describe("registro sin rol (frontend nuevo)", () => {
   });
 });
 
-describe("COMPATIBILIDAD: frontend anterior que envía id_rol", () => {
-  test("id_rol 1 → estudiante", async () => {
-    await registrar(datos({ id_rol: 1 }));
-    expect(guardado().id_rol).toBe(1);
-    expect(guardado().solicitudesTutor).toBeUndefined();
-  });
-
-  test("id_rol 2 (eligió Tutor) → estudiante + solicitud pendiente, NO tutor", async () => {
-    const respuesta = await registrar(datos({ id_rol: "2" }));
-    expect(guardado().id_rol).toBe(1);
-    expect(guardado().solicitudesTutor.create.id_estado).toBe(3);
-    expect(respuesta.solicitud_tutor_pendiente).toBe(true);
-  });
-
-  test.each([3, 0, "abc", null])("id_rol %s → 400 «El rol no se elige en el registro»", async (idRol) => {
+describe("enviar id_rol → 400 (el rol no se elige)", () => {
+  // Incluye 1 y 2: el frontend anterior los enviaba y el backend los aceptó solo durante el despliegue
+  test.each([1, "1", 2, "2", 3, 0, "abc", null])("id_rol %s → 400 sin crear nada", async (idRol) => {
     await expect(registrar(datos({ id_rol: idRol }))).rejects.toMatchObject({
       status: 400, message: "El rol no se elige en el registro",
     });
+    expect(prisma.usuario.create).not.toHaveBeenCalled();
+  });
+
+  test("id_rol junto con «Quiero ser tutor» → también 400", async () => {
+    await expect(registrar(datos({ id_rol: 2, quiero_ser_tutor: true }))).rejects.toMatchObject({ status: 400 });
     expect(prisma.usuario.create).not.toHaveBeenCalled();
   });
 });

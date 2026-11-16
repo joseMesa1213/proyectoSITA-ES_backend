@@ -164,10 +164,17 @@ describe("POST /auth/google/registro", () => {
     await expect(registrarConGoogle(datosRegistro({ token_registro: sesion }))).rejects.toMatchObject({ status: 401 });
   });
 
-  test("intentando elegir rol administrador → 400 (igual que el registro normal)", async () => {
-    await expect(registrarConGoogle(datosRegistro({ id_rol: 3 }))).rejects.toMatchObject({
+  test.each([1, 2, 3])("enviando id_rol %s → 400 sin crear nada (igual que el registro normal)", async (idRol) => {
+    await expect(registrarConGoogle(datosRegistro({ id_rol: idRol }))).rejects.toMatchObject({
       status: 400, message: "El rol no se elige en el registro",
     });
+    expect(prisma.usuario.create).not.toHaveBeenCalled();
+  });
+
+  test("sin id_rol → se crea como estudiante", async () => {
+    prisma.usuario.create.mockImplementation(async ({ data }) => usuarioGuardado({ id: 9, id_rol: data.id_rol }));
+    await registrarConGoogle(datosRegistro());
+    expect(prisma.usuario.create.mock.calls[0][0].data.id_rol).toBe(1);
   });
 
   test("con «Quiero ser tutor» → estudiante con solicitud pendiente", async () => {

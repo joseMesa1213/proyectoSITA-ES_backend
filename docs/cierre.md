@@ -121,7 +121,7 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 | Cambio de rol | Ser tutor: solicitud que aprueba un administrador. Administradores: `npm run crear-admin` (consola). No hay forma de quitarle a alguien el rol de tutor desde la app. |
 | Notificaciones | No se envían correos ni recordatorios de las sesiones. |
 | Asistente | Entiende materias, temas de un diccionario ("derivadas", "SQL") y filtros (modalidad, nivel, día), pero no frases complejas: no usa IA. |
-| Pruebas automatizadas | Pruebas unitarias con Vitest en backend (`npm test`) y frontend (asistente); la API se verifica con la colección de Postman en `docs/postman/` (152 peticiones, 383 verificaciones). No hay pruebas de interfaz automatizadas. |
+| Pruebas automatizadas | Pruebas unitarias con Vitest en backend (`npm test`) y frontend (asistente); la API se verifica con la colección de Postman en `docs/postman/` (153 peticiones, 384 verificaciones). No hay pruebas de interfaz automatizadas. |
 | Plan gratuito de Render | El backend se duerme sin uso y la primera petición es lenta. |
 
 ---
@@ -130,10 +130,11 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 
 - [x] **Colección de Postman**: exportarla a `docs/` con dos entornos (`local` → `http://localhost:3000/api` y `render` → `https://proyectosita-es-backend.onrender.com/api`), con casos correctos y de error por endpoint.
 - [ ] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia con y sin errores de escritura, cada botón del menú y preguntas libres.
-- [ ] **Cambiar el dominio de las cuentas de demostración en producción**: correr [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql)
-  en el SQL Editor de Supabase (lo hace el dueño de la BD) y avisar al equipo los correos nuevos.
-- [ ] **Publicar las solicitudes para ser tutor**: respaldo, migración y orden de publicación en
-  [`docs/despliegue-solicitudes-tutor.md`](despliegue-solicitudes-tutor.md). Después, quitar la compatibilidad de `id_rol` en el registro.
+- [x] **Cambiar el dominio de las cuentas de demostración en producción**: [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql)
+  aplicado en Supabase; las cuentas de demostración entran con `@demo.sita-es.test`.
+- [x] **Publicar las solicitudes para ser tutor**: respaldo, migración y publicación hechos según
+  [`docs/despliegue-solicitudes-tutor.md`](despliegue-solicitudes-tutor.md); los 7 tutores que existían quedaron con su
+  solicitud aprobada. La compatibilidad temporal de `id_rol` en el registro ya se quitó: cualquier `id_rol` responde 400.
 - [x] **Rutas internas del frontend en Render**: regla *Rewrite* `/*` → `/index.html` configurada (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
 
 ---

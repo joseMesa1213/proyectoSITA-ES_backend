@@ -21,7 +21,7 @@ Comandos para **PowerShell**, desde la carpeta `proyectoSITA-ES_backend`, con Do
 | 3 | Merge del PR del **backend** → Render despliega | Revertir el merge; la base migrada sirve con el código anterior |
 | 4 | Merge del PR del **frontend** → Render despliega | Revertir el merge |
 | 5 | Revisar solicitudes que llegaron entre 3 y 4 | — |
-| 6 | (Después) PR que quita la compatibilidad de `id_rol` | — |
+| 6 | ✅ Hecho: PR que quita la compatibilidad de `id_rol` | — |
 
 Entre los pasos 3 y 4 el frontend publicado todavía envía `id_rol` al registrarse. El backend lo acepta por
 compatibilidad: `id_rol 1` → estudiante; `id_rol 2` → estudiante con solicitud de tutor **pendiente**
@@ -92,10 +92,11 @@ SELECT indexname FROM pg_indexes WHERE indexname = 'uq_solicitud_tutor_pendiente
 Entrar como administrador → **Solicitudes de tutor**. Aprobar a quien se registró como "Tutor" mientras el frontend
 anterior seguía publicado.
 
-## 6. Quitar la compatibilidad (más adelante)
+## 6. Quitar la compatibilidad ✅ hecho
 
-En `src/modules/auth/auth.service.js`, función `quiereSerTutor`, borrar el bloque marcado `COMPATIBILIDAD` y su prueba
-en `auth.registro.test.js`. Desde entonces cualquier `id_rol` en el registro responde 400.
+Se hizo en la rama `feature/quitar-compat-id-rol`, después de publicar el frontend nuevo: en
+`src/modules/auth/auth.service.js`, la función `quiereSerTutor` ya no tiene el bloque de compatibilidad. Desde entonces
+cualquier `id_rol` en el registro (normal o con Google), incluidos 1 y 2, responde 400 "El rol no se elige en el registro".
 
 ## Crear un administrador
 
