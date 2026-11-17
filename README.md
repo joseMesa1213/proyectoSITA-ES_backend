@@ -238,6 +238,15 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
   Quien la pidió recibe un aviso con el enlace a la tutoría.
 - **Vencen a los 30 días** sin respuesta (con aviso), al consultar, como mucho una vez por hora.
 
+### Estadísticas (administrador)
+- Solo lectura, sin tablas nuevas (`src/modules/estadisticas/`): consultas agregadas en hora de Bogotá.
+- **Oferta actual** (no depende del período): tutorías activas, horas semanales de horarios activos, tutores con horarios.
+- **Período** (últimas N semanas, lunes a domingo, incluida la actual): reservas no canceladas y canceladas por semana
+  (fecha de la sesión), tasa de cancelación, valoraciones (promedio y distribución 1–5) y solicitudes de tutoría.
+- **Ocupación** = reservas no canceladas / cupo actual, promediada sobre las sesiones (horario + fecha, ya ocurridas)
+  que tuvieron al menos una reserva. Las sesiones sin reservas no se cuentan: el horario no guarda desde cuándo existe.
+- **Demanda sin oferta**: materias con solicitudes abiertas o vencidas en el período y ninguna tutoría activa.
+
 ### Notificaciones (campanita)
 - `tbl_notificacion`: aviso para un usuario con `tipo`, `titulo`, `mensaje`, `enlace` (ruta del frontend) y `leida`.
   Lógica en `src/modules/notificaciones/notificaciones.service.js` (`notificar`, `notificarAdministradores`).
@@ -311,6 +320,7 @@ Prefijo: `/api`. **Público** = sin token.
 | | `GET /solicitudes-tutoria/mias` · `PATCH /solicitudes-tutoria/:id/retirar` | Estudiante o tutor (las propias) | ✅ |
 | | `GET /solicitudes-tutoria/para-mi` (abiertas de sus materias) · `PATCH /solicitudes-tutoria/:id/atender` `{ id_tutoria }` | Tutor | ✅ |
 | | `POST /tutorias` con `id_solicitud` → publica y la atiende en la misma transacción (`solicitud_atendida`) | Tutor | ✅ |
+| **estadisticas** | `GET /estadisticas?semanas=12` (4–52) → resumen, reservas por semana, por materia, demanda sin oferta, valoraciones | Admin | ✅ |
 | **notificaciones** | `GET /notificaciones` → `{ no_leidas, notificaciones }` (30 más recientes, no leídas primero) | Autenticado | ✅ |
 | | `PATCH /notificaciones/:id/leer` (ajena o inexistente → 404) · `PATCH /notificaciones/leer-todas` | Autenticado | ✅ |
 

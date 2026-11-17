@@ -9,6 +9,7 @@ import valoracionesRoutes from "./modules/valoraciones/valoraciones.routes.js";
 import solicitudesRoutes from "./modules/solicitudes/solicitudes.routes.js";
 import notificacionesRoutes from "./modules/notificaciones/notificaciones.routes.js";
 import solicitudesTutoriaRoutes from "./modules/solicitudes-tutoria/solicitudes-tutoria.routes.js";
+import estadisticasRoutes from "./modules/estadisticas/estadisticas.routes.js";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use("/valoraciones", valoracionesRoutes);
 router.use("/solicitudes-tutor", solicitudesRoutes);
 router.use("/notificaciones", notificacionesRoutes);
 router.use("/solicitudes-tutoria", solicitudesTutoriaRoutes);
+router.use("/estadisticas", estadisticasRoutes);
 
 export default router;
