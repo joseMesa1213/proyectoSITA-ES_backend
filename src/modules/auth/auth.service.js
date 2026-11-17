@@ -7,6 +7,7 @@ import { env } from "../../config/env.js";
 import { ESTADO, ROL } from "../../constants/catalogos.js";
 import { AppError } from "../../utils/AppError.js";
 import { aEntero, requerirCampos, textoOpcional } from "../../utils/validar.js";
+import { avisarSolicitudNueva } from "../solicitudes/solicitudes.service.js";
 
 const incluirPerfil = {
   rol: true,
@@ -70,6 +71,7 @@ async function crearUsuario(datos, contrasena) {
     include: incluirPerfil,
   });
 
+  if (solicitaTutor) await avisarSolicitudNueva(`${usuario.nombre} ${usuario.apellido}`);
   // solicitud_tutor_pendiente: el frontend lo usa para avisar "su solicitud quedó en revisión"
   return { token: firmarToken(usuario), usuario, solicitud_tutor_pendiente: solicitaTutor };
 }

@@ -4,6 +4,7 @@ import { AppError } from "../../utils/AppError.js";
 import { aEntero, requerirCampos, validarOpcion } from "../../utils/validar.js";
 import { ahora, dateAHora, esHoraValida, fechaATexto, horaADate, hoy, textoAFecha } from "../../utils/fechas.js";
 import { CAPACIDAD_SALA_JITSI, generarEnlaceJitsi } from "../../lib/jitsi.js";
+import { fechaLegible, notificar, TIPO } from "../notificaciones/notificaciones.service.js";
 
 // Concurrencia: las transacciones que bloquean filas (SELECT ... FOR UPDATE) lo hacen
 // SIEMPRE en este orden para no caer en deadlocks: usuario → tutoría → horario → recurso.
@@ -90,12 +91,13 @@ async function obtenerPropia(id, idTutor) {
 }
 
 // Cancela las reservas ACTIVAS de esos horarios cuya sesión aún no empieza; las ya
-// ocurridas se dejan para que el tutor las complete. Devuelve cuántas canceló.
-async function cancelarSesionesPendientes(tx, horarios) {
+// ocurridas se dejan para que el tutor las complete. Avisa a cada estudiante afectado.
+// motivo: "desactivó ese horario" | "inactivó la tutoría". Devuelve cuántas canceló.
+async function cancelarSesionesPendientes(tx, horarios, motivo) {
   if (horarios.length === 0) return 0;
   const fechaHoy = textoAFecha(hoy());
   const horaActual = ahora();
-  const { count } = await tx.reserva.updateMany({
+  const afectadas = await tx.reserva.findMany({
     where: {
       id_estado: ESTADO.ACTIVO,
       OR: horarios.map((h) => ({
@@ -104,8 +106,26 @@ async function cancelarSesionesPendientes(tx, horarios) {
         fecha_sesion: dateAHora(h.hora_inicio) > horaActual ? { gte: fechaHoy } : { gt: fechaHoy },
       })),
     },
+    select: {
+      id: true,
+      id_usuario_estudiante: true,
+      fecha_sesion: true,
+      horario: { select: { hora_inicio: true, tutoria: { select: { titulo: true } } } },
+    },
+  });
+  if (afectadas.length === 0) return 0;
+  // WHERE id_estado = ACTIVO otra vez: si una se canceló o completó entretanto, no se pisa ni se avisa dos veces
+  const { count } = await tx.reserva.updateMany({
+    where: { id: { in: afectadas.map((r) => r.id) }, id_estado: ESTADO.ACTIVO },
     data: { id_estado: ESTADO.CANCELADO },
   });
+  await notificar(tx, afectadas.map((r) => ({
+    id_usuario: r.id_usuario_estudiante,
+    tipo: TIPO.RESERVA_CANCELADA,
+    titulo: `Se canceló su sesión de «${r.horario.tutoria.titulo}»`,
+    mensaje: `El tutor ${motivo}, así que su reserva del ${fechaLegible(r.fecha_sesion)} (${dateAHora(r.horario.hora_inicio)}) quedó cancelada. Puede buscar otra tutoría en el catálogo.`,
+    enlace: "/mis-reservas",
+  })));
   return count;
 }
 
@@ -252,7 +272,7 @@ export async function actualizar(id, idTutor, datos = {}) {
 
     let reservasCanceladas = 0;
     if (data.id_estado === ESTADO.INACTIVO) {
-      reservasCanceladas = await cancelarSesionesPendientes(tx, horarios);
+      reservasCanceladas = await cancelarSesionesPendientes(tx, horarios, "inactivó la tutoría");
       await tx.horario.updateMany({
         where: { id_tutoria: id, id_estado: ESTADO.ACTIVO },
         data: { id_estado: ESTADO.INACTIVO },
@@ -434,7 +454,7 @@ export async function desactivarHorario(idTutoria, idHorario, idTutor) {
     });
     if (!horario) throw new AppError(404, "Horario no encontrado en esta tutoría");
 
-    const reservasCanceladas = await cancelarSesionesPendientes(tx, [horario]);
+    const reservasCanceladas = await cancelarSesionesPendientes(tx, [horario], "desactivó ese horario");
     const actualizado = await tx.horario.update({
       where: { id: idHorario },
       data: { id_estado: ESTADO.INACTIVO },

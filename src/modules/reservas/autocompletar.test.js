@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("../../lib/prisma.js", () => ({ prisma: { $executeRaw: vi.fn() } }));
+vi.mock("../notificaciones/notificaciones.service.js", () => ({ TIPO: { SESION_COMPLETADA: "sesion_completada" } }));
 
 const { prisma } = await import("../../lib/prisma.js");
 const { completarVencidas, HORAS_PARA_AUTOCOMPLETAR } = await import("./autocompletar.js");
@@ -14,14 +15,16 @@ const consulta = () => {
 beforeEach(() => vi.clearAllMocks());
 
 describe("completarVencidas", () => {
-  test("pasa a COMPLETADO las ACTIVAS cuya sesión terminó hace más de 24 h (hora de Bogotá)", async () => {
+  test("pasa a COMPLETADO las ACTIVAS cuya sesión terminó hace más de 24 h (hora de Bogotá) y avisa a cada estudiante", async () => {
     prisma.$executeRaw.mockResolvedValue(3);
     expect(await completarVencidas({ forzar: true })).toBe(3);
     const { sql, valores } = consulta();
     expect(sql).toContain("UPDATE tbl_reserva");
     expect(sql).toContain("r.fecha_sesion + h.hora_fin");
     expect(sql).toContain("America/Bogota");
-    expect(valores).toEqual([5, 1, HORAS_PARA_AUTOCOMPLETAR]); // COMPLETADO, ACTIVO, 24
+    expect(sql).toContain("INSERT INTO tbl_notificacion");
+    expect(sql).toContain("RETURNING r.id_usuario_estudiante");
+    expect(valores).toEqual([5, 1, HORAS_PARA_AUTOCOMPLETAR, "sesion_completada"]); // COMPLETADO, ACTIVO, 24, tipo
     expect(HORAS_PARA_AUTOCOMPLETAR).toBe(24);
   });
 
