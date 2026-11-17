@@ -25,7 +25,11 @@ npm run dev                 # http://localhost:3000/api/salud
 npm test                    # pruebas automáticas (Vitest), no usan la base de datos
 npm run crear-admin         # crea un administrador (pide confirmación y datos por consola)
 npm run respaldo            # respaldo de la base del .env con pg_dump en Docker (ver §6)
+npm run postman:local       # colección de Postman contra este backend local (docs/postman/README.md)
 ```
+
+**Solo se entra con Google @udea.edu.co.** Para desarrollar con las cuentas de la semilla (correo y contraseña) el
+`.env` local necesita `LOGIN_CONTRASENA=true` (ya viene en `.env.example`). En producción esa variable no existe.
 
 Las URLs de conexión están en Supabase → **Project Settings → Database → Connection string**:
 
@@ -104,6 +108,20 @@ Desde el service: `throw new AppError(status, "mensaje", detalles?)`. No hace fa
 - `es_administrador` está en desuso: el rol se decide solo con `id_rol`.
 
 ### Autenticación
+**En producción solo se entra con Google @udea.edu.co**, también los administradores:
+
+| Ruta | Producción | Desarrollo (`LOGIN_CONTRASENA=true`) |
+|---|---|---|
+| `POST /auth/google` y `/auth/google/registro` | ✅ única forma de entrar y de registrarse | ✅ |
+| `POST /auth/login` (correo y contraseña) | **403** «Use «Continuar con Google»…» (antes de validar nada) | ✅ cuentas de la semilla, Postman |
+| `POST /auth/registro` (formulario) | **403** siempre | **403** siempre |
+
+- `LOGIN_CONTRASENA` está apagada por defecto: solo `true` exacto la enciende (`env.loginContrasena`).
+- La semilla sigue creando cuentas con contraseña con `registrarConContrasena` (`auth.service.js`), que no tiene ruta.
+- Las cuentas de demostración se **inactivan** en producción ([`docs/sql/inactivar-cuentas-demo.sql`](docs/sql/inactivar-cuentas-demo.sql)):
+  si alguna vez se encendiera `LOGIN_CONTRASENA` por error, nadie entraría con su contraseña conocida.
+- Pasos de publicación y orden: [docs/despliegue-solo-google.md](docs/despliegue-solo-google.md).
+
 Header `Authorization: Bearer <token>`. Tras `autenticar`, `req.usuario = { id, rol }`. El token dura `JWT_EXPIRES_IN` (8h por defecto).
 **El rol y el estado se leen de la BD en cada petición** (no del token): al aprobar una solicitud de tutor o inactivar
 a alguien, el cambio aplica en la siguiente petición, sin volver a iniciar sesión. Usuario inactivo o borrado → 401.
@@ -116,12 +134,12 @@ El botón "Continuar con Google" del frontend entrega un **ID token** (`credenti
 1. `POST /auth/google { credential }`
    - Exige `email_verified` y un correo del dominio `GOOGLE_DOMINIO` (por defecto `udea.edu.co`). También revisa `hd`,
      que Google solo pone en cuentas administradas por la institución. Sin `GOOGLE_CLIENT_ID` responde **503**.
-   - **Usuario existente y activo** → `{ token, usuario }`, igual que `/auth/login`. Inactivo → 403.
-   - **Administrador** → 403: debe iniciar sesión con correo y contraseña (la cuenta con más permisos no se vincula a Google).
+   - **Usuario existente y activo** → `{ token, usuario }`. Inactivo → 403. Incluye a los **administradores**: el rol
+     no viene de Google, se lee de la BD (y solo `npm run crear-admin` lo pone en 3).
    - **Usuario nuevo** → `{ registro_pendiente: true, token_registro, perfil: { correo, nombre, apellido } }`.
      El `token_registro` dura **15 minutos** y se firma con un secreto distinto al de las sesiones.
-2. `POST /auth/google/registro { token_registro, id_rol, id_tipo_documento, num_documento, nombre_programa, semestre, celular?, nombre?, apellido? }`
-   → crea el usuario con las validaciones del registro normal y devuelve `{ token, usuario }`.
+2. `POST /auth/google/registro { token_registro, id_tipo_documento, num_documento, nombre_programa, semestre, celular?, nombre?, apellido?, quiero_ser_tutor?, motivo_tutor? }`
+   → crea el usuario (estudiante; con solicitud de tutor pendiente si marcó «Quiero ser tutor») y devuelve `{ token, usuario }`.
    El **correo sale siempre del token** (nunca del body); nombre y apellido se pueden corregir.
 
 | Caso | Respuesta |
@@ -131,21 +149,16 @@ El botón "Continuar con Google" del frontend entrega un **ID token** (`credenti
 | Correo no verificado por Google | 403 |
 | Correo de otro dominio, o cuenta personal sin `hd` institucional | 403 |
 | Usuario inactivo | 403 |
-| Cuenta de administrador | 403 |
 | `token_registro` vencido, alterado o que no es de registro | 401 |
 | Correo o documento ya registrados | 409 |
 
-**Sin migración de BD.** Como `contrasena_hash` es obligatorio, a quien se registra con Google se le guarda el hash de una
-contraseña aleatoria que nadie conoce. Consecuencias:
-- Esa persona **solo entra con Google**: con correo y contraseña recibe "Credenciales inválidas".
-- Si pierde el acceso a su cuenta de Google, la coordinación debe asignarle una contraseña desde la BD (no hay recuperación).
-- Quien ya tenía cuenta con contraseña puede usar **los dos** métodos: Google entra a la misma cuenta (se vincula por correo).
-- El backend no distingue quién se registró con Google. Si se necesita, una migración futura puede agregar una columna `proveedor`.
-
-**Limitación conocida (vincular por correo):** el registro normal no verifica el correo. Alguien podría crear una cuenta con
-contraseña usando el correo institucional de otra persona; si luego el dueño real entra con Google, accede a esa misma cuenta.
-Por la misma razón, las cuentas de demostración usan el dominio ficticio `@demo.sita-es.test` (ver *Datos de demostración*),
-y los administradores no pueden entrar con Google.
+**Sin migración de BD.** Como `contrasena_hash` es obligatorio, a quien se registra con Google (y al administrador
+creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una contraseña aleatoria que nadie conoce:
+- Esa persona **solo entra con Google**. Si pierde el acceso a su correo institucional, lo resuelve el soporte de la Universidad.
+- Las cuentas se vinculan **por correo**: quien tenía cuenta de antes entra a la misma con Google.
+- Como ya no hay registro por formulario, nadie puede crear una cuenta con el correo institucional de otra persona:
+  cada correo lo verifica Google. Las cuentas de demostración usan el dominio ficticio `@demo.sita-es.test`, que no
+  existe en Google, y en producción además están inactivas.
 
 ---
 
@@ -153,7 +166,7 @@ y los administradores no pueden entrar con Google.
 
 - **`id_rol` es un nivel de permisos, no una elección:** 1 Estudiante (todos al registrarse) · 2 Estudiante + Tutor
   (cuando un administrador aprueba su solicitud) · 3 Administrador (solo con `npm run crear-admin`, nunca por la API).
-- El registro (normal y con Google) **no deja elegir rol**: quien quiere ser tutor marca "Quiero ser tutor"
+- El registro (solo con Google) **no deja elegir rol**: quien quiere ser tutor marca "Quiero ser tutor"
   (`quiero_ser_tutor`, `motivo_tutor?`) y se crea una solicitud pendiente. Ver *Solicitudes para ser tutor*.
 - Todo usuario registrado tiene fila en `tbl_estudiante` (programa y semestre). Los administradores creados con
   `crear-admin` no la tienen: no reservan.
@@ -170,7 +183,7 @@ y los administradores no pueden entrar con Google.
 - **Aprobar** sube `id_rol` de 1 a 2 en la misma transacción (a un administrador no se le cambia). **Rechazar** exige
   una observación, que el usuario ve en su perfil; puede volver a solicitar.
 - Si dos administradores revisan a la vez, `UPDATE ... WHERE id_estado = PENDIENTE` deja pasar solo a uno (el otro, 409).
-- Si el registro (normal o con Google) trae `id_rol`, con cualquier valor, responde **400 "El rol no se elige en el
+- Si el registro con Google trae `id_rol`, con cualquier valor, responde **400 "El rol no se elige en el
   registro"** y no crea nada (función `quiereSerTutor` en `auth.service.js`).
 
 ### Salones y cruces de horario
@@ -217,9 +230,9 @@ Prefijo: `/api`. **Público** = sin token.
 | Módulo | Método y ruta | Acceso | Estado |
 |---|---|---|---|
 | — | `GET /salud` | Público | ✅ |
-| **auth** | `POST /auth/registro` | Público | ✅ |
-| | `POST /auth/login` | Público | ✅ |
-| | `POST /auth/google` · `POST /auth/google/registro` | Público | ✅ |
+| **auth** | `POST /auth/google` · `POST /auth/google/registro` | Público | ✅ única forma de entrar en producción |
+| | `POST /auth/login` | Público | ✅ solo con `LOGIN_CONTRASENA=true` (desarrollo); si no, 403 |
+| | `POST /auth/registro` | Público | 403 siempre (el registro es con Google) |
 | | `GET /auth/perfil` | Autenticado | ✅ |
 | **catalogos** | `GET /catalogos/estados` · `/roles` · `/tipos-documento` · `/opciones` | Público | ✅ |
 | **materias** | `GET /materias?q=` | Público | ✅ |
@@ -242,12 +255,6 @@ Prefijo: `/api`. **Público** = sin token.
 
 ### Ejemplos de body
 ```jsonc
-// POST /auth/registro  (sin rol: todos entran como estudiantes)
-{ "nombre": "Ana", "apellido": "Gómez", "id_tipo_documento": 1, "num_documento": "1001",
-  "correo": "ana@uni.edu.co", "contrasena": "minimo8chars", "celular": "3001234567",
-  "nombre_programa": "Ingeniería de Sistemas", "semestre": 4,
-  "quiero_ser_tutor": true, "motivo_tutor": "Domino Cálculo Diferencial" }
-
 // POST /solicitudes-tutor  (desde el perfil)
 { "motivo": "Domino Cálculo Diferencial" }
 
@@ -257,9 +264,10 @@ Prefijo: `/api`. **Público** = sin token.
 // POST /auth/google  (credential = ID token del botón de Google)
 { "credential": "eyJhbGciOiJSUzI1NiIs..." }
 
-// POST /auth/google/registro  (token_registro = el que devolvió /auth/google)
-{ "token_registro": "eyJhbGciOiJIUzI1NiIs...", "id_rol": 1, "id_tipo_documento": 1,
-  "num_documento": "1002", "nombre_programa": "Ingeniería de Sistemas", "semestre": 2 }
+// POST /auth/google/registro  (token_registro = el que devolvió /auth/google; sin rol: todos entran como estudiantes)
+{ "token_registro": "eyJhbGciOiJIUzI1NiIs...", "id_tipo_documento": 1, "num_documento": "1002",
+  "celular": "3001234567", "nombre_programa": "Ingeniería de Sistemas", "semestre": 2,
+  "quiero_ser_tutor": true, "motivo_tutor": "Domino Cálculo Diferencial" }
 
 // POST /tutorias
 { "id_materia": 3, "titulo": "Repaso de derivadas", "descripcion": "...",
@@ -308,6 +316,9 @@ npm run db:status           # debe decir "Database schema is up to date"
 - Sesiones pasadas (completadas, valoradas y canceladas) y reservas próximas.
 
 Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `coordinacion.sita-es@demo.sita-es.test`.
+- Entran con correo y contraseña, así que **solo sirven en desarrollo** (`LOGIN_CONTRASENA=true`). En producción se
+  inactivan con [`docs/sql/inactivar-cuentas-demo.sql`](docs/sql/inactivar-cuentas-demo.sql) (verificar con
+  [`docs/sql/verificar-cuentas-demo.sql`](docs/sql/verificar-cuentas-demo.sql)).
 - Los correos usan el dominio ficticio `@demo.sita-es.test` para que ninguno coincida con el de una persona real de la UdeA
   (que podría entrar con Google). En una base cargada antes con `@udea.edu.co`: [`docs/sql/cambiar-dominio-demo.sql`](docs/sql/cambiar-dominio-demo.sql).
 - Solo agrega datos: no borra nada. Si ya se aplicó, no hace nada.
@@ -316,8 +327,10 @@ Personas ficticias; todas las cuentas usan la contraseña `Udea123.`. Admin: `co
 ### Otros
 - `npm run db:studio` → explorador visual de datos.
 - **Crear un administrador:** `npm run crear-admin`. Usa la base del `.env`: muestra a qué servidor se conecta y pide
-  escribir `SI`; pregunta correo, nombre, documento y contraseña (no se ve al escribirla; mínimo 10 caracteres).
-  Si el correo ya existe, ofrece convertir esa cuenta en administrador. No hay ninguna ruta de la API para esto.
+  escribir `SI`. Si el correo ya existe, ofrece convertir esa cuenta en administrador. No hay ninguna ruta de la API para esto.
+  - Correo **@udea.edu.co** (producción): pide nombre, apellido y documento, **no** pide contraseña. Entra con Google.
+  - Otro dominio (solo desarrollo, por ejemplo `@demo.sita-es.test`): avisa que no podrá entrar con Google, pide
+    confirmar y una contraseña de al menos 10 caracteres (no se ve al escribirla). Solo entra con `LOGIN_CONTRASENA=true`.
 - **Hacer tutor a alguien:** el administrador aprueba su solicitud en el panel *Solicitudes de tutor* (ya no se cambia
   `id_rol` a mano).
 
@@ -355,14 +368,18 @@ Variables de entorno en Render:
 | `CORS_ORIGIN` | `https://proyectosita-es.onrender.com,http://localhost:5173` |
 | `GOOGLE_CLIENT_ID` | ID de cliente OAuth de Google (termina en `.apps.googleusercontent.com`). Sin él, el login con Google responde 503 y el resto sigue igual |
 | `GOOGLE_DOMINIO` | Opcional (`udea.edu.co` por defecto): dominio de correo permitido con Google |
+| `LOGIN_CONTRASENA` | **No se define.** Solo para desarrollo: con `true` vuelve el login con correo y contraseña |
 
 - `PORT` lo asigna Render; no se configura.
+- `GOOGLE_CLIENT_ID` es obligatorio en la práctica: sin él nadie puede entrar (es la única forma de iniciar sesión).
 - `GOOGLE_CLIENT_ID` debe ser **el mismo** que `VITE_GOOGLE_CLIENT_ID` del frontend. En Google Cloud Console →
   *APIs y servicios → Credenciales*, ese ID de cliente debe tener en **Orígenes autorizados de JavaScript**
   `https://proyectosita-es.onrender.com` y `http://localhost:5173`.
 - `DIRECT_URL` no hace falta en Render: solo la usa la CLI de Prisma. Las **migraciones no se aplican al desplegar**:
   el dueño de la BD las aplica desde su equipo (`npm run db:migrate`, §6) **antes** de fusionar el código que las necesita.
 - La raíz `/` responde `404 Ruta no encontrada` a propósito: todas las rutas están bajo `/api`.
+- **Solo Google:** crear el administrador, publicar backend y frontend, inactivar las cuentas de demostración y
+  verificar, en ese orden: [docs/despliegue-solo-google.md](docs/despliegue-solo-google.md).
 - **Solicitudes para ser tutor:** pasos de respaldo, migración, verificación y orden de publicación en
   [docs/despliegue-solicitudes-tutor.md](docs/despliegue-solicitudes-tutor.md).
 - En el plan gratuito el servicio se duerme tras unos 15 minutos sin uso y la primera petición tarda entre 30 y 50 s.
