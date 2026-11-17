@@ -226,6 +226,18 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
 - **Cupo de la tutoría:** no puede superar la capacidad del recurso de sus horarios ni quedar por debajo de las reservas de una sesión futura. La **modalidad** debe seguir siendo compatible con esos recursos.
 - **Recurso con horarios activos:** no se puede inactivar ni cambiar de tipo, y su capacidad no puede quedar por debajo del cupo de esas tutorías.
 
+### Solicitudes de tutoría ("pedir una tutoría")
+- Quien no encuentra lo que necesita la **pide**: materia, tema, descripción y disponibilidad (texto libre).
+  Estados (catálogo existente): `PENDIENTE (3)` abierta → `COMPLETADO (5)` atendida · `CANCELADO (4)` la retiró ·
+  `INACTIVO (2)` venció. Módulo `src/modules/solicitudes-tutoria/`.
+- Máximo **3 abiertas** por persona (409); se bloquea la fila del usuario para que dos envíos a la vez no lo pasen.
+- Al crearla se avisa a los **tutores activos de esa materia** (menos a quien la pide). Solo ven nombre y apellido.
+- El tutor la **atiende** con una tutoría suya, activa y de la misma materia: una existente (`/atender`) o una nueva
+  (`POST /tutorias` con `id_solicitud`). `UPDATE ... WHERE abierta`: si dos tutores la atienden a la vez, gana uno
+  (el otro, 409; al publicar una nueva, la tutoría igual se crea y responde `solicitud_atendida: false`).
+  Quien la pidió recibe un aviso con el enlace a la tutoría.
+- **Vencen a los 30 días** sin respuesta (con aviso), al consultar, como mucho una vez por hora.
+
 ### Notificaciones (campanita)
 - `tbl_notificacion`: aviso para un usuario con `tipo`, `titulo`, `mensaje`, `enlace` (ruta del frontend) y `leida`.
   Lógica en `src/modules/notificaciones/notificaciones.service.js` (`notificar`, `notificarAdministradores`).
@@ -240,6 +252,8 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
 | Sesión completada (por el tutor o automáticamente) | El estudiante: "valore su sesión" |
 | Solicitud para ser tutor (desde el perfil o al registrarse) | Cada administrador activo |
 | Solicitud aprobada o rechazada (con el motivo) | Quien la hizo |
+| Solicitud de tutoría nueva | Cada tutor activo de esa materia |
+| Solicitud de tutoría atendida o vencida | Quien la pidió |
 
 - La solicitud nueva no tiene transacción propia: si avisar falla, se registra y la solicitud igual se guarda (`avisarSinFallar`).
 - El completado automático avisa en la misma sentencia (`WITH ... UPDATE ... RETURNING` + `INSERT`).
@@ -293,6 +307,10 @@ Prefijo: `/api`. **Público** = sin token.
 | | `GET /solicitudes-tutor/mia` | Autenticado | ✅ |
 | | `GET /solicitudes-tutor?estado=pendientes\|historial` | Admin | ✅ |
 | | `PATCH /solicitudes-tutor/:id/aprobar` · `PATCH /solicitudes-tutor/:id/rechazar` | Admin | ✅ |
+| **solicitudes-tutoria** | `POST /solicitudes-tutoria` `{ id_materia, tema, descripcion?, disponibilidad? }` | Estudiante o tutor | ✅ |
+| | `GET /solicitudes-tutoria/mias` · `PATCH /solicitudes-tutoria/:id/retirar` | Estudiante o tutor (las propias) | ✅ |
+| | `GET /solicitudes-tutoria/para-mi` (abiertas de sus materias) · `PATCH /solicitudes-tutoria/:id/atender` `{ id_tutoria }` | Tutor | ✅ |
+| | `POST /tutorias` con `id_solicitud` → publica y la atiende en la misma transacción (`solicitud_atendida`) | Tutor | ✅ |
 | **notificaciones** | `GET /notificaciones` → `{ no_leidas, notificaciones }` (30 más recientes, no leídas primero) | Autenticado | ✅ |
 | | `PATCH /notificaciones/:id/leer` (ajena o inexistente → 404) · `PATCH /notificaciones/leer-todas` | Autenticado | ✅ |
 

@@ -8,6 +8,7 @@ import reservasRoutes from "./modules/reservas/reservas.routes.js";
 import valoracionesRoutes from "./modules/valoraciones/valoraciones.routes.js";
 import solicitudesRoutes from "./modules/solicitudes/solicitudes.routes.js";
 import notificacionesRoutes from "./modules/notificaciones/notificaciones.routes.js";
+import solicitudesTutoriaRoutes from "./modules/solicitudes-tutoria/solicitudes-tutoria.routes.js";
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use("/reservas", reservasRoutes);
 router.use("/valoraciones", valoracionesRoutes);
 router.use("/solicitudes-tutor", solicitudesRoutes);
 router.use("/notificaciones", notificacionesRoutes);
+router.use("/solicitudes-tutoria", solicitudesTutoriaRoutes);
 
 export default router;
