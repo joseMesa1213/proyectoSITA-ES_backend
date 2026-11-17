@@ -9,6 +9,7 @@
 | API | https://proyectosita-es-backend.onrender.com/api/salud |
 | Repositorio frontend | https://github.com/joseMesa1213/proyectoSITA-ES |
 | Repositorio backend | https://github.com/joseMesa1213/proyectoSITA-ES_backend |
+| Manual de usuario | https://github.com/joseMesa1213/proyectoSITA-ES/blob/main/docs/manual-usuario.md |
 
 > Detalle técnico (instalación, convenciones, reglas, endpoints, migraciones y despliegue): [README del backend](../README.md) y [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#readme).
 > El arranque del proyecto quedó registrado en [etapa-1.md](etapa-1.md).
@@ -21,11 +22,11 @@ SITA-ES (Sistema de Tutorías Académicas) permite que estudiantes de la univers
 
 | Rol | Qué puede hacer |
 |---|---|
-| **Visitante** (sin sesión) | Ver el catálogo de tutorías con filtros por materia, nivel y modalidad; ver el detalle con horarios y valoraciones; registrarse con «Continuar con Google» (correo @udea.edu.co). |
+| **Visitante** (sin sesión) | Ver el catálogo de tutorías con filtros por materia, nivel, modalidad y día; ver el detalle con horarios y valoraciones; registrarse con «Continuar con Google» (correo @udea.edu.co). |
 | **Estudiante** (todos al registrarse) | Reservar un cupo eligiendo horario semanal y fecha de la sesión; ver su agenda (próximas, completadas, canceladas); cancelar; calificar de 1 a 5 una sesión completada; **solicitar ser tutor** (al registrarse o desde *Mi perfil*). |
 | **Tutor** (solicitud aprobada) | Todo lo del estudiante (en tutorías de otros) y además: asociarse a materias, publicar y editar tutorías, agregar o desactivar horarios con su salón o enlace, ver las reservas recibidas por sesión y marcarlas como completadas o canceladas. |
 | **Administrador** | Gestionar el catálogo de materias y los recursos (salones físicos y enlaces virtuales con capacidad) y **aprobar o rechazar las solicitudes para ser tutor**. No reserva. Se crea con `npm run crear-admin`. |
-| **Todos** | **Asistente SITA**: chat guiado que busca tutorías por materia y responde preguntas frecuentes según el rol (ver §4). |
+| **Todos** | **Asistente SITA**: chat guiado que busca tutorías por materia o por tema, con filtros de modalidad, nivel y día, y responde preguntas frecuentes según el rol (ver §4). |
 
 ---
 
@@ -42,7 +43,7 @@ Navegador ──► Frontend (Render, Static Site)         React 19 · Vite · T
 ```
 
 - Respuestas con un formato único: `{ ok: true, data }` o `{ ok: false, error: { mensaje, detalles } }`.
-- Backend organizado por módulos (`routes → controller → service`): `auth`, `catalogos`, `materias`, `recursos`, `tutorias`, `reservas`, `valoraciones`.
+- Backend organizado por módulos (`routes → controller → service`): `auth`, `catalogos`, `materias`, `recursos`, `tutorias`, `reservas`, `valoraciones`, `solicitudes`.
 - Fechas y horas siempre en la zona `America/Bogota`.
 
 ---
@@ -83,12 +84,23 @@ Las reglas completas (cupos, cruces de horario, capacidad del salón, modalidad 
 Botón flotante en todas las páginas del frontend.
 
 - **Busca tutorías por materia** con nombre o código, aunque esté mal escrito o sin tildes ("kalkulo" → Cálculo Diferencial y Cálculo Integral).
+- **Busca por tema**: un diccionario relaciona temas con materias ("derivadas" → Cálculo Diferencial, "sql" → Bases de Datos, "mate" → materias de matemáticas). Si el tema no está en el diccionario, lo busca en el título y la descripción de las tutorías ("runge kutta").
+- **Entiende filtros** escritos en la pregunta: modalidad ("virtual"), nivel ("básico") y día ("hoy", "mañana", "lunes"). Ej.: "cálculo virtual el martes". Para "hoy" descarta las sesiones que ya empezaron. Los enlaces abren el catálogo con los mismos filtros.
 - **Consulta datos del usuario**: próximas reservas y sesiones por calificar (estudiante y tutor); estudiantes inscritos hoy (tutor).
-- **Responde preguntas frecuentes** por rol: cómo reservar, cancelar o calificar; por qué no se pudo reservar; por qué no se puede crear un horario; cómo gestionar materias y recursos.
+- **Responde preguntas frecuentes** por rol: cómo reservar, cancelar o calificar; por qué no se pudo reservar; por qué no se puede crear un horario; horarios y modalidades; cómo elegir tutor (por valoraciones); cómo entrar con Google; estado de la solicitud para ser tutor; cómo gestionar materias, recursos y solicitudes de tutor (administrador). Si un visitante pregunta por sus reservas, le pide iniciar sesión.
+- **Accesible**: el lector de pantalla anuncia cada respuesta nueva, se cierra con Escape y devuelve el foco al botón flotante; en el celular, botones más grandes y campo sin zoom.
 - **Solo orienta**: no reserva, cancela ni crea nada; enlaza a la pantalla correspondiente. Así todas las reglas de negocio siguen en el backend.
 - No necesita endpoints nuevos ni cambios en la BD. Única dependencia: [Fuse.js](https://www.fusejs.io/) (búsqueda difusa, gratuita).
 
-**Para agregar una pregunta frecuente** basta con agregar un objeto en `src/asistente/intenciones.js` del frontend, con sus frases de ejemplo y su respuesta.
+| Archivo del frontend | Para qué |
+|---|---|
+| `src/asistente/clasificador.js` | Entiende el texto (función pura, sin API). |
+| `src/asistente/temas.js` | Diccionario tema → materia. **Para que entienda un tema nuevo, agregar la palabra aquí.** |
+| `src/asistente/intenciones.js` | Preguntas frecuentes por rol. **Para agregar una pregunta, agregar un objeto aquí.** |
+| `src/asistente/motor.js` | Arma la respuesta: consulta tutorías y reservas, aplica los filtros y crea los enlaces. |
+| `src/asistente/clasificador.test.js` | Pruebas con Vitest (`npm test`): tabla de frases → resultado esperado por rol. |
+
+Las pruebas usan una copia fija de la semilla del backend; si la semilla cambia, hay que actualizar esa copia y los códigos de `temas.js`.
 
 ---
 
@@ -127,8 +139,9 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 | Contraseñas | No hay: se entra con la cuenta de Google @udea.edu.co. Quien no pueda entrar a su correo institucional acude al soporte de la Universidad. Personas sin correo @udea.edu.co no pueden usar SITA-ES. |
 | Cambio de rol | Ser tutor: solicitud que aprueba un administrador. Administradores: `npm run crear-admin` (consola). No hay forma de quitarle a alguien el rol de tutor desde la app. |
 | Notificaciones | No se envían correos ni recordatorios de las sesiones. |
-| Asistente | Entiende materias, temas de un diccionario ("derivadas", "SQL") y filtros (modalidad, nivel, día), pero no frases complejas: no usa IA. |
-| Pruebas automatizadas | Pruebas unitarias con Vitest en backend (`npm test`) y frontend (asistente); la API se verifica con la colección de Postman en `docs/postman/` (148 peticiones, 375 verificaciones; contra Render solo la carpeta Humo, sin sesión). No hay pruebas de interfaz automatizadas. |
+| Asistente | Entiende materias, temas de un diccionario ("derivadas", "SQL") y filtros (modalidad, nivel, día), pero no frases complejas: no usa IA. Un tema que no esté en `temas.js` solo lo encuentra si aparece en el título o la descripción de una tutoría, y las tutorías recién publicadas pueden tardar hasta 5 minutos en aparecer en sus búsquedas (caché). |
+| Filtro por día | Lo aplica el frontend sobre las tutorías ya cargadas; el backend no filtra por día. |
+| Pruebas automatizadas | Pruebas unitarias con Vitest en backend (`npm test`, 76) y frontend (asistente, inicio de sesión y componentes de interfaz, 116); la API se verifica con la colección de Postman en `docs/postman/` (148 peticiones, 375 verificaciones; contra Render solo la carpeta Humo, sin sesión). No hay pruebas de interfaz automatizadas. |
 | Plan gratuito de Render | El backend se duerme sin uso y la primera petición es lenta. |
 
 ---
@@ -136,7 +149,7 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 ## 7. Pendientes a cargo del equipo
 
 - [x] **Colección de Postman**: exportarla a `docs/` con dos entornos (`local` → `http://localhost:3000/api` y `render` → `https://proyectosita-es-backend.onrender.com/api`), con casos correctos y de error por endpoint.
-- [ ] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia con y sin errores de escritura, cada botón del menú y preguntas libres.
+- [x] **Prueba del Asistente SITA** en producción con los cuatro roles (visitante, estudiante, tutor, administrador): búsquedas por materia y por tema con y sin errores de escritura, filtros, cada botón del menú y preguntas libres.
 - [x] **Cambiar el dominio de las cuentas de demostración en producción**: [`docs/sql/cambiar-dominio-demo.sql`](sql/cambiar-dominio-demo.sql)
   aplicado en Supabase; las cuentas de demostración entran con `@demo.sita-es.test`.
 - [x] **Publicar las solicitudes para ser tutor**: respaldo, migración y publicación hechos según
@@ -157,4 +170,4 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 | Desplegar | Push o merge a `main` en cada repositorio; Render despliega solo ([README §7](../README.md#7-despliegue-render)). |
 | Permitir otro dominio del frontend | Agregarlo a `CORS_ORIGIN` del backend en Render, separado por coma. |
 | Cambiar la URL de la API en el frontend | Cambiar `VITE_API_URL` en Render y volver a desplegar el frontend (se lee al compilar). |
-| Ampliar el asistente | Agregar intenciones en `src/asistente/intenciones.js` del frontend. |
+| Ampliar el asistente | Preguntas nuevas en `src/asistente/intenciones.js` y temas nuevos en `src/asistente/temas.js` del frontend; agregar el caso a `clasificador.test.js` y correr `npm test`. |
