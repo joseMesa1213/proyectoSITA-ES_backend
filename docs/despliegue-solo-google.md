@@ -25,8 +25,10 @@ Comandos para **PowerShell**, desde la carpeta `proyectoSITA-ES_backend`, con Do
 | 3 | Merge del PR del **frontend** → Render despliega | Revertir el merge |
 | 4 | **Inactivar las cuentas de demostración** (SQL) | El script se deshace solo si falla; ver abajo |
 | 5 | Verificación | — |
+| 6 | **Después**, cuando ya haya tutorías reales publicadas: ocultar las tutorías de demostración (SQL) | El script se deshace solo si falla; si no hay tutorías reales, se niega |
 
-Los pasos 2 a 5 conviene hacerlos seguidos, el mismo día.
+Los pasos 2 a 5 conviene hacerlos seguidos, el mismo día. El paso 6 no tiene fecha: se hace cuando los tutores
+reales ya hayan publicado sus tutorías desde la app.
 
 ## 0. Preparar y respaldar
 
@@ -128,8 +130,10 @@ Las sesiones abiertas de esas cuentas dejan de servir en la siguiente petición 
 Inactivar a un usuario **no** inactiva sus tutorías: las de los 5 tutores de demostración (consulta 4) siguen en el
 catálogo y se pueden reservar, pero su tutor ya no puede entrar a marcar sesiones como completadas ni cancelar.
 Las reservas activas que involucran cuentas de demostración aparecen en la consulta 5.
-Esto se dejó así a propósito (el pedido fue «solo cuentas, sin borrar nada»). Si el equipo prefiere que esas
-tutorías no se vean, es una decisión aparte: no está incluida en este despliegue.
+Se dejan así a propósito para que el catálogo no quede vacío mientras los tutores reales publican las suyas.
+Se ocultan después, en el paso 6. No se reasignan a tutores reales: se mostrarían a nombre de alguien que no
+eligió esos horarios, con valoraciones que no son suyas, y se saltarían las validaciones de la app (cruces,
+capacidad, modalidad).
 
 ## 5. Verificación
 
@@ -142,6 +146,37 @@ tutorías no se vean, es una decisión aparte: no está incluida en este desplie
 5. Postman: la carpeta Humo contra Render (paso 2.4) pasa completa.
 6. SQL de verificación (paso 4.2) como se describe.
 
+## 6. Después: ocultar las tutorías de demostración
+
+Se hace **cuando ya haya tutorías reales publicadas** (días o semanas después del despliegue), para que nadie
+reserve una sesión de un tutor de demostración que ya no puede entrar.
+
+1. **¿Ya es el momento?** Supabase → SQL Editor → `docs/sql/contar-tutorias-reales.sql` (solo lee):
+   - Consulta 1: los tutores activos @udea.edu.co y cuántas tutorías tiene cada uno con horario.
+   - Consulta 2: el catálogo actual separado en «real» y «demostración» (tutorías y materias).
+
+   Si la fila «real» tiene pocas tutorías o materias, conviene esperar o pedir a los tutores que publiquen.
+2. **Ocultar:** pegar todo `docs/sql/ocultar-tutorias-demo.sql` → **Run**. Hace lo mismo que el botón
+   «Inactivar tutoría» de la app (que no se puede usar porque nadie entra con esas cuentas):
+   - Cancela solo las reservas **activas** de sesiones que **aún no empiezan** (fecha futura, o de hoy con hora de
+     inicio por venir, hora de Bogotá).
+   - Inactiva los horarios activos y las tutorías de los tutores `@demo.sita-es.test`.
+   - **No toca** reservas pasadas o ya empezadas, valoraciones, materias, recursos ni tutorías de otros tutores. No borra nada.
+   - Si no hay ninguna tutoría real activa con horario, se detiene sin cambiar nada (el catálogo quedaría vacío).
+   - Debe mostrar «Tutorías ocultadas: N. Horarios inactivados: N. Reservas futuras canceladas: N…».
+3. **Verificar:** `docs/sql/verificar-tutorias-demo.sql` (solo lee). Qué esperar:
+   1. `0 | 0` (ninguna tutoría ni horario de demostración activo).
+   2. Vacío (ninguna reserva futura activa en tutorías de demostración).
+   3. Informativa: el historial (completadas, canceladas, valoraciones) sigue ahí.
+   4. Un número mayor que 0 (tutorías reales visibles).
+
+Las reservas canceladas eran de cuentas de demostración (inactivas) o de alguien real que reservó con un tutor de
+demostración. En ese segundo caso la persona verá la reserva como cancelada en «Mi agenda»; no se envían correos.
+
+Prueba hecha en la base local (dentro de una transacción con `ROLLBACK`, sin dejar cambios): primero se negó por
+falta de tutorías reales; con una tutoría real de prueba ocultó 10 tutorías, inactivó 18 horarios y canceló las 103
+reservas futuras activas. Las 124 reservas pasadas, las 69 valoraciones y las tutorías de otros tutores quedaron igual.
+
 ## Qué pasa si se hace en otro orden
 
 | Si… | Qué pasa | Cómo se arregla |
@@ -152,6 +187,9 @@ tutorías no se vean, es una decisión aparte: no está incluida en este desplie
 | Se inactivan las cuentas demo (4) **antes** de crear el administrador (1) | El script se niega («Primero: npm run crear-admin») y no cambia nada. | Hacer el paso 1 y volver a correrlo. |
 | Se inactivan las cuentas demo (4) **antes** del backend (2) | Funciona, pero mientras siga el backend anterior José no puede entrar como administrador (Google bloquea administradores y su contraseña es aleatoria): no hay administrador en esa ventana. | Publicar el backend. |
 | **No** se inactivan las cuentas demo (4) | Todo funciona, pero queda el riesgo: si alguien define `LOGIN_CONTRASENA=true` en Render, cualquiera entra con `Udea123.`, incluso como administrador. | Correr el paso 4. |
+| Se ocultan las tutorías demo (6) **antes** de que haya tutorías reales | El script se niega y no cambia nada. Si se forzara a mano, el catálogo quedaría vacío. | Esperar a que los tutores publiquen. |
+| Se ocultan las tutorías demo (6) **antes** de inactivar las cuentas (4) | Funciona igual (no depende del paso 4). | — |
+| **No** se ocultan nunca (6) | Alguien podría reservar una sesión de un tutor de demostración que no va a llegar. | Correr el paso 6. |
 | `LOGIN_CONTRASENA=true` queda en Render | Vuelve el login con contraseña en producción. Con el paso 4 hecho, las cuentas demo igual no entran; las cuentas reales tienen contraseñas aleatorias. | Borrar la variable en Render. |
 
 ## Para desarrollo (local)

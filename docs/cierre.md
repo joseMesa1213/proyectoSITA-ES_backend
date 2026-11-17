@@ -99,7 +99,8 @@ La BD de producción tiene cargada la semilla (`npm run db:seed`): materias de I
 Contraseña de todas las cuentas: `Udea123.` **Solo sirven en desarrollo** (base local con `LOGIN_CONTRASENA=true`):
 en producción se entra solo con Google y estas cuentas se **inactivan** al publicar «solo Google»
 ([`docs/sql/inactivar-cuentas-demo.sql`](sql/inactivar-cuentas-demo.sql), paso 4 de
-[`despliegue-solo-google.md`](despliegue-solo-google.md)). Sus tutorías siguen visibles en el catálogo.
+[`despliegue-solo-google.md`](despliegue-solo-google.md)). Sus tutorías siguen visibles en el catálogo hasta que haya tutorías reales;
+entonces se ocultan con [`docs/sql/ocultar-tutorias-demo.sql`](sql/ocultar-tutorias-demo.sql) (paso 6 de la misma guía).
 
 | Rol | Correo |
 |---|---|
