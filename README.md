@@ -199,6 +199,11 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
   - Si es tutor, no está dictando una tutoría suya en esa franja.
   - Si la fecha es hoy, la sesión aún no empieza.
 - Solo se **completa** una sesión que ya terminó (hoy, después de `hora_fin`, o un día anterior).
+- **Completado automático:** una reserva `ACTIVO` pasa sola a `COMPLETADO` **24 h** después de terminar la sesión
+  (`src/modules/reservas/autocompletar.js`), así el estudiante puede valorarla aunque el tutor no la marque. Dentro de
+  ese plazo el tutor la completa él mismo o **cancela** la de quien no asistió. No hay tarea programada (Render gratuito
+  duerme el servidor): un solo `UPDATE` se ejecuta al consultar `GET /reservas/mias` o `/reservas/tutor`, como máximo
+  cada 5 minutos; si falla, se registra en el log y la consulta responde normal.
 
 ### Salas Jitsi de las tutorías Virtuales
 - Cada tutoría **Virtual** tiene **su propia sala de Jitsi Meet**, que se crea al publicarla (o al cambiarla a Virtual).
