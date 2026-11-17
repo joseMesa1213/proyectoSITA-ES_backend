@@ -3,6 +3,7 @@ import { DIAS, ESTADO } from "../../constants/catalogos.js";
 import { AppError } from "../../utils/AppError.js";
 import { aEntero, requerirCampos } from "../../utils/validar.js";
 import { ahora, dateAHora, esFechaValida, fechaATexto, hoy, textoAFecha } from "../../utils/fechas.js";
+import { completarVencidas } from "./autocompletar.js";
 
 // Estados de una reserva en el MVP:  ACTIVO → COMPLETADO  |  ACTIVO → CANCELADO
 // Orden de bloqueo de filas: usuario → tutoría → horario → recurso (ver tutorias.service)
@@ -183,8 +184,10 @@ export async function crear(idUsuario, datos) {
 /**
  * GET /api/reservas/mias — estudiante o tutor.
  * Reservas hechas por el usuario, más recientes primero.
+ * Antes completa las sesiones vencidas (ver autocompletar.js) para que pueda valorarlas.
  */
 export async function listarMias(idUsuario) {
+  await completarVencidas();
   const reservas = await prisma.reserva.findMany({
     where: { id_usuario_estudiante: idUsuario },
     include: incluirDetalle,
@@ -196,8 +199,10 @@ export async function listarMias(idUsuario) {
 /**
  * GET /api/reservas/tutor?fecha_sesion=YYYY-MM-DD — tutor.
  * Reservas en las tutorías del tutor, con datos básicos del estudiante.
+ * Antes completa las sesiones vencidas (ver autocompletar.js).
  */
 export async function listarDelTutor(idTutor, { fecha_sesion } = {}) {
+  await completarVencidas();
   const where = { horario: { tutoria: { id_tutor: idTutor } } };
   if (fecha_sesion) {
     if (!esFechaValida(fecha_sesion)) {
