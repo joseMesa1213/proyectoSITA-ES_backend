@@ -58,7 +58,9 @@ const resultado = spawnSync(
   [
     "run", "--rm",
     "-e", "PGURL", // sin valor: Docker la toma del entorno de este proceso
-    "-v", `${CARPETA}:/respaldos`,
+    // En Linux con SELinux (Fedora, RHEL) el contenedor no puede escribir en una carpeta de la casa del
+    // usuario si no se re-etiqueta con :z. En Windows y macOS (Docker Desktop) no hace falta.
+    "-v", `${CARPETA}:/respaldos${process.platform === "linux" ? ":z" : ""}`,
     IMAGEN,
     "sh", "-c",
     `pg_dump "$PGURL" --schema=public --no-owner --no-privileges --format=custom --file=/respaldos/${nombre}`,
@@ -66,7 +68,7 @@ const resultado = spawnSync(
   { stdio: "inherit", env: { ...process.env, PGURL: url.toString() } }
 );
 
-if (resultado.error) fallar(`No se pudo ejecutar Docker: ${resultado.error.message}. ¿Está abierto Docker Desktop?`);
+if (resultado.error) fallar(`No se pudo ejecutar Docker: ${resultado.error.message}. ¿Está abierto Docker Desktop (o el servicio docker en Linux)?`);
 if (resultado.status !== 0) fallar("pg_dump terminó con error (ver el mensaje de arriba). No se generó un respaldo válido.");
 
 const archivo = path.join(CARPETA, nombre);
