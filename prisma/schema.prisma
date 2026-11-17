@@ -70,10 +70,12 @@ model Recurso {
   ubicacion String @db.VarChar(255) // Salón/Bloque o enlace (Meet/Zoom)
   capacidad Int    @default(1)
   id_estado Int
+  generado  Boolean @default(false) // sala Jitsi creada por el sistema para una tutoría Virtual
 
-  estado   Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recurso_estado")
-  horarios Horario[]
-  reservas Reserva[]
+  estado         Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recurso_estado")
+  horarios       Horario[]
+  reservas       Reserva[]
+  tutoria_enlace Tutoria?  @relation("EnlaceTutoria")
 
   @@map("tbl_recurso")
 }
@@ -150,7 +152,9 @@ model Tutoria {
   modalidad   String?   @db.VarChar(50) // 'Presencial' | 'Virtual' | 'Híbrida'
   cupo        Int       @default(1)
   fecha       DateTime? @default(now()) @db.Timestamp(6) // fecha de creación
+  id_recurso_enlace Int? @unique // sala Jitsi propia (solo tutorías Virtuales)
 
+  enlace   Recurso?  @relation("EnlaceTutoria", fields: [id_recurso_enlace], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_recurso_enlace")
   tutor    Usuario   @relation(fields: [id_tutor], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_tutor")
   materia  Materia   @relation(fields: [id_materia], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_materia")
   estado   Estado    @relation(fields: [id_estado], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tutoria_estado")

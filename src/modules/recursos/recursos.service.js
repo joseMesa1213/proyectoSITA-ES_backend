@@ -26,9 +26,10 @@ function datosRecurso({ nombre, tipo, ubicacion, capacidad, id_estado }) {
 /**
  * GET /api/recursos?tipo=Físico — autenticado.
  * Admin ve todos; el resto solo los ACTIVOS (los elige al reservar).
+ * Las salas Jitsi generadas para tutorías Virtuales no se listan: las gestiona el sistema.
  */
 export async function listar(usuario, { tipo } = {}) {
-  const where = {};
+  const where = { generado: false };
   if (usuario.rol !== ROL.ADMINISTRADOR) where.id_estado = ESTADO.ACTIVO;
   if (tipo) {
     validarOpcion(tipo, TIPOS_RECURSO, "tipo");
@@ -56,6 +57,7 @@ export async function crear(datos) {
  * Si está asignado a horarios ACTIVOS (409, con la lista de tutorías):
  * - no se puede inactivar ni cambiar de tipo;
  * - la capacidad no puede quedar por debajo del cupo de esas tutorías.
+ * Las salas Jitsi generadas no se editan (409).
  * Concurrencia: bloquea el recurso; nadie puede asignarlo a un horario mientras se valida.
  */
 export async function actualizar(id, datos = {}) {
@@ -70,6 +72,9 @@ export async function actualizar(id, datos = {}) {
     await tx.$queryRaw`SELECT id FROM tbl_recurso WHERE id = ${id} FOR UPDATE`;
     const recurso = await tx.recurso.findUnique({ where: { id } });
     if (!recurso) throw new AppError(404, "Recurso no encontrado");
+    if (recurso.generado) {
+      throw new AppError(409, "Las salas Jitsi de las tutorías Virtuales se gestionan automáticamente");
+    }
 
     const horarios = await tx.horario.findMany({
       where: { id_recurso: id, id_estado: ESTADO.ACTIVO },

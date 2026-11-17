@@ -200,6 +200,22 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
   - Si la fecha es hoy, la sesión aún no empieza.
 - Solo se **completa** una sesión que ya terminó (hoy, después de `hora_fin`, o un día anterior).
 
+### Salas Jitsi de las tutorías Virtuales
+- Cada tutoría **Virtual** tiene **su propia sala de Jitsi Meet**, que se crea al publicarla (o al cambiarla a Virtual).
+  No hay API ni credenciales: la URL es `JITSI_URL/SITA-ES-<título>-<12 caracteres aleatorios>` (`src/lib/jitsi.js`;
+  `JITSI_URL` por defecto es `https://meet.jit.si`). La parte aleatoria impide adivinar la sala por el título.
+- La sala se guarda como un recurso Virtual con `generado = true`, enlazado desde `tbl_tutoria.id_recurso_enlace`.
+  Así la reserva la copia y "Mis reservas" muestra el enlace igual que antes, sin cambios en reservas.
+- Al crear un horario de una tutoría Virtual **no se envía `id_recurso`** (si llega, se ignora): se usa su sala.
+  Presencial e Híbrida siguen eligiendo recurso como siempre.
+- Las salas generadas **no aparecen** en `GET /recursos` ni se editan con `PUT /recursos/:id` (409).
+- Cupo máximo de una tutoría Virtual: **100** (`CAPACIDAD_SALA_JITSI`), 400 si se supera.
+- El enlace lo ven solo el tutor dueño (`enlace_reunion` en `GET /tutorias/mias`, `POST` y `PUT /tutorias`) y
+  quien reserva. Las rutas públicas no lo incluyen.
+- Tutorías Virtuales anteriores a esta función: sus horarios conservan la sala virtual que tenían; reciben su sala
+  Jitsi con el siguiente horario que se agregue o al editarlas. Las salas virtuales del administrador quedan para las Híbridas.
+- En `meet.jit.si`, **quien abre la sala debe iniciar sesión** (Google, GitHub…); los demás entran solo con el enlace.
+
 ### Cambios sobre datos en uso
 - **Desactivar un horario** o **inactivar una tutoría** cancela en cascada las reservas de sesiones que aún no empiezan; la respuesta trae `reservas_canceladas`. Inactivar la tutoría también inactiva sus horarios.
 - **Cupo de la tutoría:** no puede superar la capacidad del recurso de sus horarios ni quedar por debajo de las reservas de una sesión futura. La **modalidad** debe seguir siendo compatible con esos recursos.
@@ -273,7 +289,7 @@ Prefijo: `/api`. **Público** = sin token.
 { "id_materia": 3, "titulo": "Repaso de derivadas", "descripcion": "...",
   "nivel": "Básico", "modalidad": "Presencial", "cupo": 5 }
 
-// POST /tutorias/:id/horarios
+// POST /tutorias/:id/horarios  (id_recurso no se envía si la tutoría es Virtual: usa su sala Jitsi)
 { "dia": "Lunes", "hora_inicio": "10:00", "hora_fin": "12:00", "id_recurso": 2 }
 
 // POST /reservas  (el recurso sale del horario)

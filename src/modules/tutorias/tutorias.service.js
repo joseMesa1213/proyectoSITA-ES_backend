@@ -3,6 +3,7 @@ import { DIAS, ESTADO, MODALIDADES, NIVELES, RECURSO_POR_MODALIDAD } from "../..
 import { AppError } from "../../utils/AppError.js";
 import { aEntero, requerirCampos, validarOpcion } from "../../utils/validar.js";
 import { ahora, dateAHora, esHoraValida, fechaATexto, horaADate, hoy, textoAFecha } from "../../utils/fechas.js";
+import { CAPACIDAD_SALA_JITSI, generarEnlaceJitsi } from "../../lib/jitsi.js";
 
 // Concurrencia: las transacciones que bloquean filas (SELECT ... FOR UPDATE) lo hacen
 // SIEMPRE en este orden para no caer en deadlocks: usuario → tutoría → horario → recurso.
@@ -41,6 +42,42 @@ const formatear = (t) => ({
   ...t,
   horarios: t.horarios.map(formatearHorario).sort(compararHorarios),
 });
+
+// Solo para el tutor dueño: además, el enlace de su sala Jitsi (null si no es Virtual).
+// Las rutas públicas no lo incluyen; los estudiantes lo ven al reservar.
+const incluirParaTutor = { ...incluir(false), enlace: { select: { ubicacion: true } } };
+const formatearParaTutor = ({ enlace, ...t }) => ({
+  ...formatear(t),
+  enlace_reunion: enlace?.ubicacion ?? null,
+});
+
+const VIRTUAL = "Virtual";
+
+// Una sala Jitsi admite un número limitado de participantes
+function validarCupoVirtual(modalidad, cupo) {
+  if (modalidad === VIRTUAL && cupo > CAPACIDAD_SALA_JITSI) {
+    throw new AppError(400, `Una tutoría Virtual admite como máximo ${CAPACIDAD_SALA_JITSI} cupos`);
+  }
+}
+
+// Devuelve el id de la sala Jitsi de la tutoría; si aún no tiene, la crea (recurso Virtual
+// "generado", fuera del panel de recursos) y la asocia. Las tutorías Virtuales creadas antes
+// de esta función reciben su sala al agregar el siguiente horario.
+async function asegurarSalaJitsi(tx, tutoria) {
+  if (tutoria.id_recurso_enlace) return tutoria.id_recurso_enlace;
+  const sala = await tx.recurso.create({
+    data: {
+      nombre: `Sala Jitsi · ${tutoria.titulo}`.slice(0, 200),
+      tipo: VIRTUAL,
+      ubicacion: generarEnlaceJitsi(tutoria.titulo),
+      capacidad: CAPACIDAD_SALA_JITSI,
+      id_estado: ESTADO.ACTIVO,
+      generado: true,
+    },
+  });
+  await tx.tutoria.update({ where: { id: tutoria.id }, data: { id_recurso_enlace: sala.id } });
+  return sala.id;
+}
 
 // Busca la tutoría y verifica que sea del tutor autenticado
 async function obtenerPropia(id, idTutor) {
@@ -123,10 +160,10 @@ export async function listar({ id_materia, nivel, modalidad } = {}) {
 export async function listarDelTutor(idTutor) {
   const tutorias = await prisma.tutoria.findMany({
     where: { id_tutor: idTutor },
-    include: incluir(false),
+    include: incluirParaTutor,
     orderBy: { fecha: "desc" },
   });
-  return tutorias.map(formatear);
+  return tutorias.map(formatearParaTutor);
 }
 
 /**
@@ -143,11 +180,14 @@ export async function obtener(id) {
  * POST /api/tutorias — tutor.
  * Body: { id_materia, titulo, descripcion?, nivel, modalidad, cupo }
  * El tutor debe tener la materia asociada (si no → 403).
+ * Si es Virtual, se le crea su sala Jitsi (respuesta: enlace_reunion) y el cupo
+ * no puede superar CAPACIDAD_SALA_JITSI (400).
  */
 export async function crear(idTutor, datos) {
   requerirCampos(datos, ["id_materia", "titulo", "nivel", "modalidad", "cupo"]);
   const idMateria = aEntero(datos.id_materia, "id_materia");
   const data = datosTutoria(datos);
+  validarCupoVirtual(data.modalidad, data.cupo);
 
   const asociada = await prisma.materiaTutor.findUnique({
     where: { id_tutor_id_materia: { id_tutor: idTutor, id_materia: idMateria } },
@@ -156,11 +196,14 @@ export async function crear(idTutor, datos) {
     throw new AppError(403, "Debe asociarse a la materia antes de publicar tutorías de ella");
   }
 
-  const tutoria = await prisma.tutoria.create({
-    data: { ...data, id_tutor: idTutor, id_materia: idMateria, id_estado: ESTADO.ACTIVO },
-    include: incluir(false),
+  return prisma.$transaction(async (tx) => {
+    const tutoria = await tx.tutoria.create({
+      data: { ...data, id_tutor: idTutor, id_materia: idMateria, id_estado: ESTADO.ACTIVO },
+    });
+    if (tutoria.modalidad === VIRTUAL) await asegurarSalaJitsi(tx, tutoria);
+    const creada = await tx.tutoria.findUnique({ where: { id: tutoria.id }, include: incluirParaTutor });
+    return formatearParaTutor(creada);
   });
-  return formatear(tutoria);
 }
 
 /**
@@ -169,14 +212,15 @@ export async function crear(idTutor, datos) {
  * id_estado solo ACTIVO o INACTIVO. No se cambia id_materia.
  * - cupo: no puede superar la capacidad del recurso de algún horario activo (409) ni
  *   quedar por debajo de las reservas activas de una sesión futura (409).
- * - modalidad: los recursos de los horarios activos deben ser compatibles (409).
+ * - modalidad: los recursos de los horarios activos deben ser compatibles (409). Al pasar
+ *   a Virtual se le crea su sala Jitsi si no tenía; Virtual admite máximo CAPACIDAD_SALA_JITSI cupos (400).
  * - Inactivar: sus horarios pasan a INACTIVO y las reservas de sesiones que aún no
  *   empiezan, a CANCELADO. La respuesta incluye reservas_canceladas.
  * Concurrencia: bloquea la tutoría, sus horarios activos y sus recursos; una reserva o
  * un cambio de capacidad simultáneos esperan y ven el cupo ya validado.
  */
 export async function actualizar(id, idTutor, datos = {}) {
-  await obtenerPropia(id, idTutor);
+  const actual = await obtenerPropia(id, idTutor);
 
   const data = datosTutoria(datos);
   if (datos.id_estado !== undefined) {
@@ -204,6 +248,7 @@ export async function actualizar(id, idTutor, datos = {}) {
       where: { id_tutoria: id, id_estado: ESTADO.ACTIVO },
       include: { recurso: true },
     });
+    validarCupoVirtual(data.modalidad ?? actual.modalidad, data.cupo ?? actual.cupo);
 
     let reservasCanceladas = 0;
     if (data.id_estado === ESTADO.INACTIVO) {
@@ -225,8 +270,10 @@ export async function actualizar(id, idTutor, datos = {}) {
       }
     }
 
-    const tutoria = await tx.tutoria.update({ where: { id }, data, include: incluir(false) });
-    return { ...formatear(tutoria), reservas_canceladas: reservasCanceladas };
+    const tutoria = await tx.tutoria.update({ where: { id }, data });
+    if (tutoria.modalidad === VIRTUAL) await asegurarSalaJitsi(tx, tutoria);
+    const actualizada = await tx.tutoria.findUnique({ where: { id }, include: incluirParaTutor });
+    return { ...formatearParaTutor(actualizada), reservas_canceladas: reservasCanceladas };
   });
 }
 
@@ -257,6 +304,7 @@ async function validarCupo(tx, horarios, cupo) {
 /**
  * POST /api/tutorias/:id/horarios — tutor dueño.
  * Body: { dia, hora_inicio: "HH:MM", hora_fin: "HH:MM", id_recurso }
+ * - Tutoría Virtual: id_recurso no se pide (si llega, se ignora); se usa su sala Jitsi.
  * - La tutoría debe estar ACTIVA (409).
  * - Recurso: existe (404), ACTIVO, compatible con la modalidad y con capacidad >= cupo (409).
  * - Sin cruces (409) en ese día y franja con:
@@ -267,11 +315,11 @@ async function validarCupo(tx, horarios, cupo) {
  * (dos tutores no pueden tomar el mismo salón a la vez).
  */
 export async function agregarHorario(idTutoria, idTutor, datos) {
-  await obtenerPropia(idTutoria, idTutor);
+  const propia = await obtenerPropia(idTutoria, idTutor);
 
-  requerirCampos(datos, ["dia", "hora_inicio", "hora_fin", "id_recurso"]);
+  const esVirtual = (t) => t.modalidad === VIRTUAL;
+  requerirCampos(datos, ["dia", "hora_inicio", "hora_fin", ...(esVirtual(propia) ? [] : ["id_recurso"])]);
   const { dia, hora_inicio, hora_fin } = datos;
-  const idRecurso = aEntero(datos.id_recurso, "id_recurso");
   validarOpcion(dia, DIAS, "dia");
   if (!esHoraValida(hora_inicio) || !esHoraValida(hora_fin)) {
     throw new AppError(400, "Las horas deben tener formato HH:MM (24 horas)");
@@ -295,12 +343,17 @@ export async function agregarHorario(idTutoria, idTutor, datos) {
   const horario = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM tbl_usuario WHERE id = ${idTutor} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM tbl_tutoria WHERE id = ${idTutoria} FOR UPDATE`;
-    await tx.$queryRaw`SELECT id FROM tbl_recurso WHERE id = ${idRecurso} FOR UPDATE`;
 
     const tutoria = await tx.tutoria.findUnique({ where: { id: idTutoria } });
     if (tutoria.id_estado !== ESTADO.ACTIVO) {
       throw new AppError(409, "Active la tutoría antes de agregarle horarios");
     }
+    // La modalidad se relee bajo bloqueo: pudo cambiar desde la validación de arriba
+    if (!esVirtual(tutoria)) requerirCampos(datos, ["id_recurso"]);
+    const idRecurso = esVirtual(tutoria)
+      ? await asegurarSalaJitsi(tx, tutoria)
+      : aEntero(datos.id_recurso, "id_recurso");
+    await tx.$queryRaw`SELECT id FROM tbl_recurso WHERE id = ${idRecurso} FOR UPDATE`;
 
     const recurso = await tx.recurso.findUnique({ where: { id: idRecurso } });
     if (!recurso) throw new AppError(404, "Recurso no encontrado");
