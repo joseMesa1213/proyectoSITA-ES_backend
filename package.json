@@ -14,7 +14,8 @@
     "db:seed": "node prisma/seed.js",
     "test": "vitest run",
     "respaldo": "node scripts/respaldo.js",
-    "crear-admin": "node scripts/crear-admin.js"
+    "crear-admin": "node scripts/crear-admin.js",
+    "postman:local": "node scripts/postman-local.js"
   },
   "keywords": [],
   "author": "",
