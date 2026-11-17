@@ -14,6 +14,9 @@ export const TIPO = Object.freeze({
   SOLICITUD_TUTOR_NUEVA: "solicitud_tutor_nueva", // a los administradores
   SOLICITUD_TUTOR_APROBADA: "solicitud_tutor_aprobada",
   SOLICITUD_TUTOR_RECHAZADA: "solicitud_tutor_rechazada",
+  SOLICITUD_TUTORIA_NUEVA: "solicitud_tutoria_nueva", // a los tutores de la materia
+  SOLICITUD_TUTORIA_ATENDIDA: "solicitud_tutoria_atendida", // a quien la pidió
+  SOLICITUD_TUTORIA_VENCIDA: "solicitud_tutoria_vencida", // a quien la pidió
 });
 
 export const DIAS_PARA_BORRAR_LEIDAS = 30;

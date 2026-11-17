@@ -5,6 +5,7 @@ import { aEntero, requerirCampos, validarOpcion } from "../../utils/validar.js";
 import { ahora, dateAHora, esHoraValida, fechaATexto, horaADate, hoy, textoAFecha } from "../../utils/fechas.js";
 import { CAPACIDAD_SALA_JITSI, generarEnlaceJitsi } from "../../lib/jitsi.js";
 import { fechaLegible, notificar, TIPO } from "../notificaciones/notificaciones.service.js";
+import { atenderEnTx } from "../solicitudes-tutoria/solicitudes-tutoria.service.js";
 
 // Concurrencia: las transacciones que bloquean filas (SELECT ... FOR UPDATE) lo hacen
 // SIEMPRE en este orden para no caer en deadlocks: usuario → tutoría → horario → recurso.
@@ -202,12 +203,16 @@ export async function obtener(id) {
  * El tutor debe tener la materia asociada (si no → 403).
  * Si es Virtual, se le crea su sala Jitsi (respuesta: enlace_reunion) y el cupo
  * no puede superar CAPACIDAD_SALA_JITSI (400).
+ * id_solicitud? (publicar desde una solicitud de tutoría): en la misma transacción la marca atendida
+ * y avisa a quien la pidió. Si ya no estaba abierta, la tutoría igual se publica y la respuesta
+ * trae solicitud_atendida: false.
  */
 export async function crear(idTutor, datos) {
   requerirCampos(datos, ["id_materia", "titulo", "nivel", "modalidad", "cupo"]);
   const idMateria = aEntero(datos.id_materia, "id_materia");
   const data = datosTutoria(datos);
   validarCupoVirtual(data.modalidad, data.cupo);
+  const idSolicitud = datos.id_solicitud != null ? aEntero(datos.id_solicitud, "id_solicitud") : null;
 
   const asociada = await prisma.materiaTutor.findUnique({
     where: { id_tutor_id_materia: { id_tutor: idTutor, id_materia: idMateria } },
@@ -221,8 +226,9 @@ export async function crear(idTutor, datos) {
       data: { ...data, id_tutor: idTutor, id_materia: idMateria, id_estado: ESTADO.ACTIVO },
     });
     if (tutoria.modalidad === VIRTUAL) await asegurarSalaJitsi(tx, tutoria);
+    const atendida = idSolicitud ? await atenderEnTx(tx, idSolicitud, idTutor, tutoria) : undefined;
     const creada = await tx.tutoria.findUnique({ where: { id: tutoria.id }, include: incluirParaTutor });
-    return formatearParaTutor(creada);
+    return { ...formatearParaTutor(creada), ...(idSolicitud && { solicitud_atendida: atendida }) };
   });
 }
 
