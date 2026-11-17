@@ -34,7 +34,7 @@ function quiereSerTutor(datos) {
 /**
  * Crea el usuario (siempre ESTUDIANTE) con su fila de estudiante y, si la pidió, su solicitud de
  * tutor pendiente, todo en una sola operación. Devuelve la sesión.
- * La usan el registro normal y el registro con Google: así ambos validan lo mismo.
+ * La usan el registro con Google y la semilla (registrarConContrasena): así ambos validan lo mismo.
  * Correo o documento repetidos → 409 (P2002 en el manejador de errores).
  */
 async function crearUsuario(datos, contrasena) {
@@ -74,7 +74,12 @@ async function crearUsuario(datos, contrasena) {
   return { token: firmarToken(usuario), usuario, solicitud_tutor_pendiente: solicitaTutor };
 }
 
-export async function registrar(datos) {
+/**
+ * Crea una cuenta con contraseña. NO la usa ninguna ruta: POST /auth/registro responde siempre 403
+ * (solo se registra con Google). La usa la semilla (`npm run db:seed`) para las cuentas de demostración
+ * que se prueban en desarrollo con LOGIN_CONTRASENA=true.
+ */
+export async function registrarConContrasena(datos) {
   requerirCampos(datos, ["contrasena"]);
   if (String(datos.contrasena).length < 8) {
     throw new AppError(400, "La contraseña debe tener al menos 8 caracteres");

@@ -1,8 +1,13 @@
+import { env } from "../../config/env.js";
+import { AppError } from "../../utils/AppError.js";
 import * as authService from "./auth.service.js";
 
-export async function registrar(req, res) {
-  const data = await authService.registrar(req.body);
-  res.status(201).json({ ok: true, data });
+// POST /auth/registro: el registro por formulario se cerró. Siempre 403 (también en desarrollo):
+// las cuentas nuevas se crean con «Continuar con Google» (POST /auth/google/registro).
+// La ruta se deja para que quien la llame reciba un mensaje claro en lugar de un 404.
+export async function registrar() {
+  throw new AppError(403,
+    `El registro se hace con «Continuar con Google» usando un correo @${env.googleDominio}.`);
 }
 
 export async function iniciarSesion(req, res) {

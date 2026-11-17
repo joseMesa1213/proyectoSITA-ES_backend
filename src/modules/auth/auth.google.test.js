@@ -188,6 +188,18 @@ describe("POST /auth/google/registro", () => {
     expect(respuesta.solicitud_tutor_pendiente).toBe(true);
   });
 
+  test("motivo de tutor vacío → la solicitud se guarda sin motivo", async () => {
+    prisma.usuario.create.mockImplementation(async ({ data }) => usuarioGuardado({ id: 9, id_rol: data.id_rol }));
+    await registrarConGoogle(datosRegistro({ quiero_ser_tutor: "true", motivo_tutor: "   " }));
+    expect(prisma.usuario.create.mock.calls[0][0].data.solicitudesTutor.create.motivo).toBeNull();
+  });
+
+  test("faltan datos académicos → 400 con la lista", async () => {
+    await expect(registrarConGoogle(datosRegistro({ nombre_programa: undefined, semestre: undefined })))
+      .rejects.toMatchObject({ status: 400, detalles: { faltantes: ["nombre_programa", "semestre"] } });
+    expect(prisma.usuario.create).not.toHaveBeenCalled();
+  });
+
   test("crea el usuario con el correo del token, aunque el body traiga otro", async () => {
     prisma.usuario.create.mockImplementation(async ({ data }) => usuarioGuardado({ correo: data.correo, id: 9 }));
 
