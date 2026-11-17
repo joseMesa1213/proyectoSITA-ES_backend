@@ -24,4 +24,7 @@ export const env = {
   // Login con correo y contraseña: SOLO para desarrollo (cuentas de la semilla, Postman).
   // Apagado por defecto: en producción se entra únicamente con Google. Solo "true" lo enciende.
   loginContrasena: process.env.LOGIN_CONTRASENA === "true",
+  // Servidor Jitsi donde se generan las salas de las tutorías Virtuales (sin / final).
+  // Por defecto el público y gratuito; se cambia si algún día se usa un servidor propio.
+  jitsiUrl: (process.env.JITSI_URL || "https://meet.jit.si").trim().replace(/\/+$/, ""),
 };
