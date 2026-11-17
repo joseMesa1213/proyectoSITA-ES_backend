@@ -171,3 +171,4 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 | Permitir otro dominio del frontend | Agregarlo a `CORS_ORIGIN` del backend en Render, separado por coma. |
 | Cambiar la URL de la API en el frontend | Cambiar `VITE_API_URL` en Render y volver a desplegar el frontend (se lee al compilar). |
 | Ampliar el asistente | Preguntas nuevas en `src/asistente/intenciones.js` y temas nuevos en `src/asistente/temas.js` del frontend; agregar el caso a `clasificador.test.js` y correr `npm test`. |
+| Agregar una funcionalidad | **Revisar también el asistente** (README del frontend, sección *Asistente SITA*): respuestas que la mencionen, pregunta nueva con sus pruebas, y la ruta en `utils/titulos.js` (`enlaces.test.js` detecta enlaces rotos). |
