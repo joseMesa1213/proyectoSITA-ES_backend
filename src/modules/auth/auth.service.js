@@ -82,7 +82,15 @@ export async function registrar(datos) {
   return crearUsuario(datos, datos.contrasena);
 }
 
+/**
+ * POST /api/auth/login — solo si LOGIN_CONTRASENA=true (desarrollo). En producción se entra con Google.
+ * Se revisa antes que los campos: apagado, cualquier intento recibe el mismo 403 que pide usar Google.
+ */
 export async function iniciarSesion({ correo, contrasena } = {}) {
+  if (!env.loginContrasena) {
+    throw new AppError(403,
+      `El ingreso con correo y contraseña está desactivado. Use «Continuar con Google» con su correo @${env.googleDominio}.`);
+  }
   requerirCampos({ correo, contrasena }, ["correo", "contrasena"]);
 
   const usuario = await prisma.usuario.findUnique({
