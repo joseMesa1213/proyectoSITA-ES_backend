@@ -4,6 +4,7 @@ import { AppError } from "../../utils/AppError.js";
 import { aEntero, requerirCampos } from "../../utils/validar.js";
 import { ahora, dateAHora, esFechaValida, fechaATexto, hoy, textoAFecha } from "../../utils/fechas.js";
 import { completarVencidas } from "./autocompletar.js";
+import { fechaLegible, notificar, TIPO } from "../notificaciones/notificaciones.service.js";
 
 // Estados de una reserva en el MVP:  ACTIVO → COMPLETADO  |  ACTIVO → CANCELADO
 // Orden de bloqueo de filas: usuario → tutoría → horario → recurso (ver tutorias.service)
@@ -56,14 +57,25 @@ async function obtenerReserva(id) {
 
 // Solo cambia el estado si la reserva sigue ACTIVA (UPDATE ... WHERE id_estado = ACTIVO):
 // si cancelar y completar llegan a la vez, gana una y la otra recibe 409.
-async function cambiarEstado(id, id_estado, mensajeSiNoActiva) {
-  const { count } = await prisma.reserva.updateMany({
-    where: { id, id_estado: ESTADO.ACTIVO },
-    data: { id_estado },
+// avisoDe(reserva) arma la notificación del cambio; se crea en la misma transacción.
+async function cambiarEstado(id, id_estado, mensajeSiNoActiva, avisoDe) {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.reserva.updateMany({
+      where: { id, id_estado: ESTADO.ACTIVO },
+      data: { id_estado },
+    });
+    if (count === 0) throw new AppError(409, mensajeSiNoActiva);
+    const { estudiante, ...reserva } = await tx.reserva.findUnique({
+      where: { id },
+      include: { ...incluirDetalle, estudiante: { select: { nombre: true, apellido: true } } },
+    });
+    await notificar(tx, [avisoDe({ ...reserva, estudiante })]);
+    return formatear(reserva);
   });
-  if (count === 0) throw new AppError(409, mensajeSiNoActiva);
-  return formatear(await prisma.reserva.findUnique({ where: { id }, include: incluirDetalle }));
 }
+
+// "la sesión del vie, 20 de nov (18:00)" — para los textos de los avisos
+const sesionTexto = (r) => `la sesión del ${fechaLegible(r.fecha_sesion)} (${dateAHora(r.horario.hora_inicio)})`;
 
 /**
  * POST /api/reservas — estudiante o tutor.
@@ -164,7 +176,7 @@ export async function crear(idUsuario, datos) {
       });
       if (ocupados >= tutoria.cupo) throw new AppError(409, "No quedan cupos para esta sesión");
 
-      return tx.reserva.create({
+      const creada = await tx.reserva.create({
         data: {
           id_usuario_estudiante: idUsuario,
           id_horario: idHorario,
@@ -174,6 +186,15 @@ export async function crear(idUsuario, datos) {
         },
         include: incluirDetalle,
       });
+      const estudiante = await tx.usuario.findUnique({ where: { id: idUsuario }, select: { nombre: true, apellido: true } });
+      await notificar(tx, [{
+        id_usuario: tutoria.id_tutor,
+        tipo: TIPO.RESERVA_NUEVA,
+        titulo: `Nueva reserva en «${tutoria.titulo}»`,
+        mensaje: `${estudiante.nombre} ${estudiante.apellido} reservó ${sesionTexto(creada)}. Cupos ocupados: ${ocupados + 1} de ${tutoria.cupo}.`,
+        enlace: "/tutor/reservas",
+      }]);
+      return creada;
     },
     { timeout: 10000 }
   );
@@ -233,7 +254,24 @@ export async function cancelar(id, idUsuario) {
   if (!esQuienReservo && !esElTutor) {
     throw new AppError(403, "Solo quien reservó o el tutor pueden cancelar esta reserva");
   }
-  return cambiarEstado(id, ESTADO.CANCELADO, "Solo se pueden cancelar reservas activas");
+  // Avisa a la otra parte: al tutor si canceló el estudiante; al estudiante si canceló el tutor
+  return cambiarEstado(id, ESTADO.CANCELADO, "Solo se pueden cancelar reservas activas", (r) =>
+    esQuienReservo
+      ? {
+          id_usuario: r.horario.tutoria.id_tutor,
+          tipo: TIPO.RESERVA_CANCELADA,
+          titulo: `Reserva cancelada en «${r.horario.tutoria.titulo}»`,
+          mensaje: `${r.estudiante.nombre} ${r.estudiante.apellido} canceló ${sesionTexto(r)}. El cupo quedó libre.`,
+          enlace: "/tutor/reservas",
+        }
+      : {
+          id_usuario: r.id_usuario_estudiante,
+          tipo: TIPO.RESERVA_CANCELADA,
+          titulo: `Su tutor canceló su reserva en «${r.horario.tutoria.titulo}»`,
+          mensaje: `Se canceló ${sesionTexto(r)}. Puede reservar otra fecha u otra tutoría.`,
+          enlace: "/mis-reservas",
+        }
+  );
 }
 
 /**
@@ -251,5 +289,11 @@ export async function completar(id, idTutor) {
   if (fecha > fechaHoy || (fecha === fechaHoy && dateAHora(reserva.horario.hora_fin) > ahora())) {
     throw new AppError(409, "No se puede completar una sesión que aún no ha terminado");
   }
-  return cambiarEstado(id, ESTADO.COMPLETADO, "Solo se pueden completar reservas activas");
+  return cambiarEstado(id, ESTADO.COMPLETADO, "Solo se pueden completar reservas activas", (r) => ({
+    id_usuario: r.id_usuario_estudiante,
+    tipo: TIPO.SESION_COMPLETADA,
+    titulo: `Valore su sesión de «${r.horario.tutoria.titulo}»`,
+    mensaje: `Su tutor marcó como completada ${sesionTexto(r)}. Su valoración ayuda a otros estudiantes.`,
+    enlace: "/mis-reservas",
+  }));
 }

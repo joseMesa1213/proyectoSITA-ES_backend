@@ -226,6 +226,26 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
 - **Cupo de la tutoría:** no puede superar la capacidad del recurso de sus horarios ni quedar por debajo de las reservas de una sesión futura. La **modalidad** debe seguir siendo compatible con esos recursos.
 - **Recurso con horarios activos:** no se puede inactivar ni cambiar de tipo, y su capacidad no puede quedar por debajo del cupo de esas tutorías.
 
+### Notificaciones (campanita)
+- `tbl_notificacion`: aviso para un usuario con `tipo`, `titulo`, `mensaje`, `enlace` (ruta del frontend) y `leida`.
+  Lógica en `src/modules/notificaciones/notificaciones.service.js` (`notificar`, `notificarAdministradores`).
+- Se crean **en la misma transacción** del evento: si el evento falla, no queda un aviso suelto.
+
+| Evento | Recibe el aviso |
+|---|---|
+| Reserva nueva | El tutor |
+| El estudiante cancela | El tutor |
+| El tutor cancela | El estudiante |
+| Cancelación en cascada (desactivar horario o inactivar tutoría) | Cada estudiante afectado |
+| Sesión completada (por el tutor o automáticamente) | El estudiante: "valore su sesión" |
+| Solicitud para ser tutor (desde el perfil o al registrarse) | Cada administrador activo |
+| Solicitud aprobada o rechazada (con el motivo) | Quien la hizo |
+
+- La solicitud nueva no tiene transacción propia: si avisar falla, se registra y la solicitud igual se guarda (`avisarSinFallar`).
+- El completado automático avisa en la misma sentencia (`WITH ... UPDATE ... RETURNING` + `INSERT`).
+- Las **leídas se borran a los 30 días**, al consultar (como mucho una vez por hora; no hay tareas programadas).
+- El frontend consulta `GET /notificaciones` cada minuto mientras la pestaña está visible.
+
 ### Concurrencia
 Las validaciones que cuentan o buscan cruces se hacen en una transacción que bloquea filas con `SELECT ... FOR UPDATE`. Así, dos peticiones simultáneas se atienden de a una y la segunda ve lo que hizo la primera.
 
@@ -273,6 +293,8 @@ Prefijo: `/api`. **Público** = sin token.
 | | `GET /solicitudes-tutor/mia` | Autenticado | ✅ |
 | | `GET /solicitudes-tutor?estado=pendientes\|historial` | Admin | ✅ |
 | | `PATCH /solicitudes-tutor/:id/aprobar` · `PATCH /solicitudes-tutor/:id/rechazar` | Admin | ✅ |
+| **notificaciones** | `GET /notificaciones` → `{ no_leidas, notificaciones }` (30 más recientes, no leídas primero) | Autenticado | ✅ |
+| | `PATCH /notificaciones/:id/leer` (ajena o inexistente → 404) · `PATCH /notificaciones/leer-todas` | Autenticado | ✅ |
 
 ### Ejemplos de body
 ```jsonc

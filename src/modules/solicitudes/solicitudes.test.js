@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("../../lib/prisma.js", () => {
   const prisma = {
     solicitudTutor: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
-    usuario: { updateMany: vi.fn() },
+    usuario: { updateMany: vi.fn(), findMany: vi.fn().mockResolvedValue([{ id: 1 }, { id: 2 }]) },
+    notificacion: { createMany: vi.fn().mockResolvedValue({ count: 1 }) },
   };
   prisma.$transaction = vi.fn((fn) => fn(prisma));
   return { prisma };
@@ -20,12 +21,24 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("crear solicitud", () => {
   test("estudiante → solicitud pendiente con su motivo", async () => {
-    prisma.solicitudTutor.create.mockResolvedValue(fila({ motivo: "Domino Cálculo" }));
+    prisma.solicitudTutor.create.mockResolvedValue(fila({ motivo: "Domino Cálculo", usuario: { nombre: "Ana", apellido: "Ruiz" } }));
     const solicitud = await solicitudes.crear(ESTUDIANTE, { motivo: "  Domino Cálculo " });
     expect(prisma.solicitudTutor.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: { id_usuario: 7, id_estado: 3, motivo: "Domino Cálculo" } })
     );
     expect(solicitud.estado).toBe("Pendiente");
+    // Aviso a cada administrador activo
+    const avisos = prisma.notificacion.createMany.mock.calls[0][0].data;
+    expect(avisos.map((a) => a.id_usuario)).toEqual([1, 2]);
+    expect(avisos[0]).toMatchObject({ tipo: "solicitud_tutor_nueva", titulo: "Nueva solicitud para ser tutor: Ana Ruiz", enlace: "/admin/solicitudes" });
+  });
+
+  test("si avisar a los administradores falla, la solicitud igual se crea", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    prisma.solicitudTutor.create.mockResolvedValue(fila({ usuario: { nombre: "Ana", apellido: "Ruiz" } }));
+    prisma.notificacion.createMany.mockRejectedValueOnce(new Error("BD"));
+    expect((await solicitudes.crear(ESTUDIANTE, {})).estado).toBe("Pendiente");
+    error.mockRestore();
   });
 
   test("ya es tutor → 409 sin tocar la BD", async () => {
@@ -84,6 +97,9 @@ describe("aprobar y rechazar", () => {
     // Solo sube a quien sigue siendo estudiante: un administrador no baja a tutor
     expect(prisma.usuario.updateMany).toHaveBeenCalledWith({ where: { id: 7, id_rol: 1 }, data: { id_rol: 2 } });
     expect(solicitud.estado).toBe("Aprobado");
+    expect(prisma.notificacion.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ id_usuario: 7, tipo: "solicitud_tutor_aprobada", enlace: "/tutor/materias" }),
+    ]);
   });
 
   test("rechazar → Rechazada con observación, sin cambiar el rol", async () => {
@@ -94,6 +110,9 @@ describe("aprobar y rechazar", () => {
 
     expect(prisma.solicitudTutor.updateMany.mock.calls[0][0].data).toMatchObject({ id_estado: 7, observacion: "Faltan datos de las materias" });
     expect(prisma.usuario.updateMany).not.toHaveBeenCalled();
+    expect(prisma.notificacion.createMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ id_usuario: 7, tipo: "solicitud_tutor_rechazada", mensaje: "Motivo: Faltan datos de las materias" }),
+    ]);
   });
 
   test("rechazar sin observación → 400", async () => {

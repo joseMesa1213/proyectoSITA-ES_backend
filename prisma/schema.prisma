@@ -110,6 +110,7 @@ model Usuario {
   valoraciones  Valoracion[]
   solicitudesTutor  SolicitudTutor[] @relation("solicitante")
   revisionesTutor   SolicitudTutor[] @relation("revisor")
+  notificaciones    Notificacion[]
 
   @@map("tbl_usuario")
 }
@@ -234,4 +235,23 @@ model SolicitudTutor {
 
   @@index([id_usuario], map: "idx_solicitud_tutor_usuario")
   @@map("tbl_solicitud_tutor")
+}
+
+// Avisos dentro de la plataforma (campanita). Se crean en los eventos (reserva nueva, cancelación,
+// sesión completada, solicitudes de tutor...). Las leídas se borran a los 30 días.
+model Notificacion {
+  id          Int       @id @default(autoincrement())
+  id_usuario  Int
+  tipo        String    @db.VarChar(40) // ver TIPO en notificaciones.service.js
+  titulo      String    @db.VarChar(200)
+  mensaje     String?
+  enlace      String?   @db.VarChar(255) // ruta del frontend: "/mis-reservas"
+  leida       Boolean   @default(false)
+  fecha       DateTime  @default(now()) @db.Timestamp(6)
+  fecha_leida DateTime? @db.Timestamp(6)
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_notificacion_usuario")
+
+  @@index([id_usuario, leida, fecha(sort: Desc)], map: "idx_notificacion_usuario")
+  @@map("tbl_notificacion")
 }

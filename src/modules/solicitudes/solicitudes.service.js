@@ -2,6 +2,18 @@ import { prisma } from "../../lib/prisma.js";
 import { ESTADO, ROL } from "../../constants/catalogos.js";
 import { AppError } from "../../utils/AppError.js";
 import { requerirCampos, textoOpcional, validarOpcion } from "../../utils/validar.js";
+import { avisarSinFallar, notificar, notificarAdministradores, TIPO } from "../notificaciones/notificaciones.service.js";
+
+// Aviso a los administradores de que hay una solicitud nueva (también lo usa el registro con Google)
+export const avisarSolicitudNueva = (nombreCompleto) =>
+  avisarSinFallar(() =>
+    notificarAdministradores(prisma, {
+      tipo: TIPO.SOLICITUD_TUTOR_NUEVA,
+      titulo: `Nueva solicitud para ser tutor: ${nombreCompleto}`,
+      mensaje: "Revísela en Solicitudes para aprobarla o rechazarla.",
+      enlace: "/admin/solicitudes",
+    })
+  );
 
 // Solicitudes para ser tutor:  PENDIENTE → APROBADO (id_rol sube de 1 a 2)  |  PENDIENTE → RECHAZADO
 // Se guarda el historial: quien fue rechazado puede volver a solicitar.
@@ -40,6 +52,7 @@ export async function crear(usuario, { motivo } = {}) {
       data: { id_usuario: usuario.id, id_estado: ESTADO.PENDIENTE, motivo: textoOpcional(motivo) },
       include: incluir,
     });
+    await avisarSolicitudNueva(`${solicitud.usuario.nombre} ${solicitud.usuario.apellido}`);
     return formatear(solicitud);
   } catch (error) {
     if (error.code === "P2002") throw new AppError(409, "Ya tiene una solicitud pendiente de revisión");
@@ -90,8 +103,25 @@ async function revisar(id, idAdmin, nuevoEstado, observacion) {
         : new AppError(404, "Solicitud no encontrada");
     }
 
+    const { id_usuario } = await tx.solicitudTutor.findUnique({ where: { id }, select: { id_usuario: true } });
+    await notificar(tx, [
+      nuevoEstado === ESTADO.APROBADO
+        ? {
+            id_usuario,
+            tipo: TIPO.SOLICITUD_TUTOR_APROBADA,
+            titulo: "¡Su solicitud para ser tutor fue aprobada!",
+            mensaje: "Asóciese a las materias que domina y publique su primera tutoría.",
+            enlace: "/tutor/materias",
+          }
+        : {
+            id_usuario,
+            tipo: TIPO.SOLICITUD_TUTOR_RECHAZADA,
+            titulo: "Su solicitud para ser tutor no fue aprobada",
+            mensaje: observacion ? `Motivo: ${observacion}` : "Puede volver a solicitarlo desde su perfil.",
+            enlace: "/perfil",
+          },
+    ]);
     if (nuevoEstado === ESTADO.APROBADO) {
-      const { id_usuario } = await tx.solicitudTutor.findUnique({ where: { id }, select: { id_usuario: true } });
       // Solo sube a quien sigue siendo estudiante: a un administrador no se le cambia el nivel
       await tx.usuario.updateMany({
         where: { id: id_usuario, id_rol: ROL.ESTUDIANTE },
