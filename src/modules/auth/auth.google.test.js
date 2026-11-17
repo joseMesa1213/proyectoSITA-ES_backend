@@ -87,14 +87,6 @@ describe("POST /auth/google: casos de error", () => {
     await expect(iniciarConGoogle({ credential: "x" })).rejects.toMatchObject({ status: 403 });
   });
 
-  test("cuenta de administrador → 403 (debe entrar con correo y contraseña)", async () => {
-    verificarCredencialGoogle.mockResolvedValue(cuentaUdea());
-    prisma.usuario.findUnique.mockResolvedValue(usuarioGuardado({ id_rol: 3 }));
-    await expect(iniciarConGoogle({ credential: "x" })).rejects.toMatchObject({
-      status: 403, message: "Los administradores deben iniciar sesión con correo y contraseña",
-    });
-  });
-
   test("usuario existente pero inactivo → 403", async () => {
     verificarCredencialGoogle.mockResolvedValue(cuentaUdea());
     prisma.usuario.findUnique.mockResolvedValue(usuarioGuardado({ id_estado: 2 }));
@@ -114,6 +106,20 @@ describe("POST /auth/google: casos correctos", () => {
     expect(prisma.usuario.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { correo: "ana.gomez@udea.edu.co" } }));
     expect(respuesta.usuario.id).toBe(7);
     expect(jwt.verify(respuesta.token, SECRETO)).toMatchObject({ id: 7, rol: 1 });
+  });
+
+  test("administrador @udea.edu.co → entra con Google; el rol sale de la BD", async () => {
+    verificarCredencialGoogle.mockResolvedValue(cuentaUdea());
+    prisma.usuario.findUnique.mockResolvedValue(usuarioGuardado({ id_rol: 3 }));
+    const respuesta = await iniciarConGoogle({ credential: "x" });
+    expect(respuesta.usuario.id_rol).toBe(3);
+    expect(jwt.verify(respuesta.token, SECRETO)).toMatchObject({ id: 7, rol: 3 });
+  });
+
+  test("administrador inactivo → 403 como cualquier usuario", async () => {
+    verificarCredencialGoogle.mockResolvedValue(cuentaUdea());
+    prisma.usuario.findUnique.mockResolvedValue(usuarioGuardado({ id_rol: 3, id_estado: 2 }));
+    await expect(iniciarConGoogle({ credential: "x" })).rejects.toMatchObject({ status: 403, message: "Usuario inactivo" });
   });
 
   test("usuario nuevo → registro pendiente con token de 15 minutos", async () => {

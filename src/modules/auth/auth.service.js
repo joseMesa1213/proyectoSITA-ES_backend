@@ -182,7 +182,8 @@ async function verificarCuentaGoogle(credential) {
 /**
  * POST /api/auth/google — público. Body: { credential }
  * Usuario existente y activo → { token, usuario } (igual que /auth/login). Inactivo → 403.
- * Administrador → 403: la cuenta con más permisos no se vincula a Google; entra con correo y contraseña.
+ * Incluye a los administradores: en producción solo se entra con Google. El rol NO viene de Google:
+ * se lee de la BD (y solo `npm run crear-admin` lo pone en 3).
  * Usuario nuevo → { registro_pendiente: true, token_registro, perfil: { correo, nombre, apellido } }.
  */
 export async function iniciarConGoogle({ credential } = {}) {
@@ -191,9 +192,6 @@ export async function iniciarConGoogle({ credential } = {}) {
   const usuario = await prisma.usuario.findUnique({ where: { correo: perfil.correo }, include: incluirPerfil });
   if (usuario) {
     if (usuario.id_estado !== ESTADO.ACTIVO) throw new AppError(403, "Usuario inactivo");
-    if (usuario.id_rol === ROL.ADMINISTRADOR) {
-      throw new AppError(403, "Los administradores deben iniciar sesión con correo y contraseña");
-    }
     return { token: firmarToken(usuario), usuario };
   }
 
