@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-// Registro normal: todos entran como estudiantes; "Quiero ser tutor" crea una solicitud pendiente.
-// Enviar id_rol (cualquier valor) responde 400: el rol nunca se elige al registrarse.
+// Registro con contraseña (registrarConContrasena): ninguna ruta la usa, solo la semilla.
+// POST /auth/registro responde siempre 403: el registro es solo con Google.
+// Aquí se revisan las reglas comunes con el registro con Google: todos entran como estudiantes,
+// "Quiero ser tutor" crea una solicitud pendiente y enviar id_rol (cualquier valor) responde 400.
 vi.mock("../../lib/prisma.js", () => ({ prisma: { usuario: { create: vi.fn() } } }));
 
 const { prisma } = await import("../../lib/prisma.js");
-const { registrar } = await import("./auth.service.js");
+const { registrarConContrasena: registrar } = await import("./auth.service.js");
+const ctrl = await import("./auth.controller.js");
 
 const datos = (cambios = {}) => ({
   nombre: "Ana", apellido: "Gómez", id_tipo_documento: 1, num_documento: "1001", correo: "Ana@Ejemplo.co",
@@ -18,6 +21,15 @@ const guardado = () => prisma.usuario.create.mock.calls[0][0].data;
 beforeEach(() => {
   vi.clearAllMocks();
   prisma.usuario.create.mockImplementation(async ({ data }) => ({ id: 5, id_rol: data.id_rol, correo: data.correo }));
+});
+
+describe("POST /auth/registro (ruta)", () => {
+  test("responde siempre 403 y pide Google, sin crear nada", async () => {
+    await expect(ctrl.registrar({ body: datos() }, {})).rejects.toMatchObject({
+      status: 403, message: expect.stringContaining("Continuar con Google"),
+    });
+    expect(prisma.usuario.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("registro sin rol", () => {

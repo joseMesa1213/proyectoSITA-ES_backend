@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "5f1c0d2e-6a7b-4c8d-9e0f-51a7e5000001",
     "name": "SITA-ES API",
-    "description": "Pruebas de la API de SITA-ES: casos correctos y de error por endpoint.\n\n1. **Humo (solo lectura)**: no crea ni modifica nada. Se puede correr en local y en Render.\n2. **Flujo completo (solo local)**: crea usuarios, materias, recursos, tutorías y reservas de prueba. Correr solo contra la base de datos local con la semilla cargada (`npm run db:seed`).\n\nAntes de correr: elegir el entorno (SITA-ES local o SITA-ES Render). Las cuentas usadas son las de la semilla (contraseña Udea123.).",
+    "description": "Pruebas de la API de SITA-ES: casos correctos y de error por endpoint.\n\nEn producción solo se entra con Google @udea.edu.co: el login con contraseña responde 403 (salvo con LOGIN_CONTRASENA=true, solo en desarrollo) y el registro por formulario responde 403 siempre.\n\n1. **Humo (solo lectura)**: no inicia sesión, no crea ni modifica nada. Se puede correr en local y en Render.\n2. **Flujo completo (solo local)**: entra con las cuentas de la semilla (contraseña Udea123., necesita LOGIN_CONTRASENA=true), registra usuarios nuevos con /auth/google/registro y crea materias, recursos, tutorías y reservas de prueba. Correr solo contra la base de datos local con la semilla cargada (`npm run db:seed`).\n\nContra el backend local: `npm run postman:local` (pasa jwt_secret desde el .env sin mostrarlo). Contra Render: solo la carpeta Humo.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -56,7 +56,7 @@
   "item": [
     {
       "name": "1. Humo (solo lectura)",
-      "description": "Seguro en cualquier entorno: solo consultas y errores que no escriben en la base de datos.",
+      "description": "Se puede correr en cualquier entorno, también contra Render: no inicia sesión, no crea ni modifica nada. Salud y catálogos, consultas públicas, 401 sin token o con token falso, y el 403 del login con contraseña y del registro por formulario (en producción solo se entra con Google @udea.edu.co).",
       "item": [
         {
           "name": "Salud y catálogos",
@@ -256,7 +256,7 @@
           "name": "Autenticación",
           "item": [
             {
-              "name": "Login administrador",
+              "name": "Login con contraseña → 403 (pide Google)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -277,7 +277,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_admin}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "raw": "{\n  \"correo\": \"nadie.postman@udea.edu.co\",\n  \"contrasena\": \"incorrecta123\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -291,16 +291,21 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_admin\", pm.response.json().data.token);"
+                      "// En producción LOGIN_CONTRASENA está apagada: solo se entra con Google. En local (login_contrasena=true)",
+                      "// el login existe y este correo inventado responde 401.",
+                      "if (pm.environment.get(\"login_contrasena\") === \"true\") {",
+                      "  pm.test(\"LOGIN_CONTRASENA=true: correo inexistente → 401\", () => pm.response.to.have.status(401));",
+                      "} else {",
+                      "  pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                      "  pm.test(\"Pide entrar con Google\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Continuar con Google\"));",
+                      "}"
                     ]
                   }
                 }
               ]
             },
             {
-              "name": "Login tutor",
+              "name": "Registro por formulario → 403 (pide Google)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -310,18 +315,18 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/login",
+                  "raw": "{{baseUrl}}/auth/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
-                    "login"
+                    "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_tutor}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Formulario\",\n  \"correo\": \"formulario.postman@udea.edu.co\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -335,182 +340,11 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_tutor\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login estudiante",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_estudiante}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_estudiante\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login segundo estudiante",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_estudiante2}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_estudiante2\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login con contraseña incorrecta → 401",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_estudiante}}\",\n  \"contrasena\": \"incorrecta123\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
-                      "pm.test(\"Mensaje: Credenciales inválidas\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Credenciales inválidas\"));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login sin campos → 400",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                      "// El registro por formulario se quitó: siempre 403, en cualquier entorno.",
+                      "// Cuerpo incompleto a propósito (sin documento ni contraseña): si el backend todavía tuviera el registro",
+                      "// (Render antes del despliegue), respondería 400 sin crear nada. Así esta petición nunca escribe datos.",
+                      "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                      "pm.test(\"Pide registrarse con Google\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Continuar con Google\"));"
                     ]
                   }
                 }
@@ -554,40 +388,6 @@
                     "exec": [
                       "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
                       "pm.test(\"Mensaje: JSON inválido\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"JSON inválido\"));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Perfil",
-              "request": {
-                "method": "GET",
-                "header": [
-                  {
-                    "key": "Authorization",
-                    "value": "Bearer {{token_estudiante}}"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/perfil",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "perfil"
-                  ]
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Es el estudiante que inició sesión\", () => pm.expect(pm.response.json().data.correo).to.eql(pm.collectionVariables.get(\"correo_estudiante\")));"
                     ]
                   }
                 }
@@ -651,135 +451,6 @@
                     "exec": [
                       "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
                       "pm.test(\"Mensaje: Token inválido\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Token inválido\"));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Registro sin campos → 400",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "registro"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"x@demo.sita-es.test\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Registro como administrador → 400",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "registro"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Admin\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"Clave1234\",\n  \"id_rol\": 3,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// El rol no se elige al registrarse: cualquier id_rol en el body responde 400",
-                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
-                      "pm.test(\"Mensaje: el rol no se elige\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"El rol no se elige en el registro\"));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Registro con contraseña corta → 400",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "registro"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Corta\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"1\",\n  \"correo\": \"no.se.crea@demo.sita-es.test\",\n  \"contrasena\": \"123\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
-                      "pm.test(\"Mensaje: al menos 8 caracteres\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"al menos 8 caracteres\"));"
                     ]
                   }
                 }
@@ -959,52 +630,9 @@
                   }
                 }
               ]
-            },
-            {
-              "name": "Registro con Google usando un token de sesión → 401",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/google/registro",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "google",
-                    "registro"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"token_registro\": \"{{token_estudiante}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "// El token de sesión del login no sirve para registrarse: los tokens de registro usan otro secreto",
-                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
-                    ]
-                  }
-                }
-              ]
             }
-          ]
+          ],
+          "description": "Sin sesión: login con contraseña (403 en producción), registro por formulario (siempre 403), JSON mal formado, perfil sin token o con token falso y los errores de Google que no necesitan una cuenta real."
         },
         {
           "name": "Consultas",
@@ -1313,6 +941,532 @@
               ]
             },
             {
+              "name": "Recursos sin token → 401",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/recursos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "recursos"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Sin sesión no crea materias → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/materias",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "materias"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nombre\": \"X\",\n  \"codigo\": \"X\",\n  \"creditos\": 3\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Mi solicitud sin sesión → 401",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "solicitudes-tutor",
+                    "mia"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Consultas públicas (catálogo, detalle y valoraciones) y recursos sin token → 401."
+        }
+      ]
+    },
+    {
+      "name": "2. Flujo completo (solo local)",
+      "description": "Crea datos de prueba. Correr solo con el entorno local: necesita la semilla cargada, el backend con LOGIN_CONTRASENA=true y jwt_secret (ver Preparación). Atajo: `npm run postman:local`.",
+      "item": [
+        {
+          "name": "Preparación",
+          "item": [
+            {
+              "name": "Calcular fechas, sufijo y tokens de registro",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/salud",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "salud"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const DIAS = [\"Domingo\", \"Lunes\", \"Martes\", \"Miércoles\", \"Jueves\", \"Viernes\", \"Sábado\"];",
+                      "const bogota = new Date(Date.now() - 5 * 3600 * 1000);",
+                      "const dia0 = Date.UTC(bogota.getUTCFullYear(), bogota.getUTCMonth(), bogota.getUTCDate());",
+                      "const fecha = (dias) => new Date(dia0 + dias * 86400000);",
+                      "const texto = (d) => d.toISOString().slice(0, 10);",
+                      "pm.collectionVariables.set(\"hoy\", texto(fecha(0)));",
+                      "pm.collectionVariables.set(\"fecha_futura\", texto(fecha(7)));            // dentro de una semana",
+                      "pm.collectionVariables.set(\"dia_futuro\", DIAS[fecha(7).getUTCDay()]);   // su día de la semana",
+                      "pm.collectionVariables.set(\"fecha_otro_dia\", texto(fecha(8)));          // no coincide con el horario",
+                      "pm.collectionVariables.set(\"fecha_pasada\", texto(fecha(-7)));           // mismo día, semana pasada",
+                      "pm.collectionVariables.set(\"sufijo\", String(Date.now()).slice(-7));     // datos únicos en cada corrida",
+                      "",
+                      "// Registro con Google sin Google: firma los token_registro igual que el backend (HS256 con JWT_SECRET + \":registro-google\").",
+                      "// Así se prueba POST /auth/google/registro sin una cuenta de Google real. jwt_secret se pasa al correr:",
+                      "//   postman collection run ... --env-var jwt_secret=...   (npm run postman:local lo hace sin mostrarlo)",
+                      "const CryptoJS = require(\"crypto-js\");",
+                      "const base64url = (palabras) => CryptoJS.enc.Base64.stringify(palabras).replace(/=+$/, \"\").replace(/\\+/g, \"-\").replace(/\\//g, \"_\");",
+                      "const firmar = (correo, nombre, apellido) => {",
+                      "  const ahora = Math.floor(Date.now() / 1000);",
+                      "  const cabecera = base64url(CryptoJS.enc.Utf8.parse(JSON.stringify({ alg: \"HS256\", typ: \"JWT\" })));",
+                      "  const carga = base64url(CryptoJS.enc.Utf8.parse(JSON.stringify({",
+                      "    tipo: \"registro_google\", correo, nombre, apellido, iat: ahora, exp: ahora + 15 * 60,",
+                      "  })));",
+                      "  const firma = base64url(CryptoJS.HmacSHA256(`${cabecera}.${carga}`, `${pm.variables.get(\"jwt_secret\")}:registro-google`));",
+                      "  return `${cabecera}.${carga}.${firma}`;",
+                      "};",
+                      "const sufijo = pm.collectionVariables.get(\"sufijo\");",
+                      "if (pm.variables.get(\"jwt_secret\")) {",
+                      "  pm.collectionVariables.set(\"token_registro_tutor\", firmar(`tutor.${sufijo}@prueba.sita-es.test`, \"Prueba\", \"Postman tutor\"));",
+                      "  pm.collectionVariables.set(\"token_registro_estudiante\", firmar(`estudiante.${sufijo}@prueba.sita-es.test`, \"Prueba\", \"Postman estudiante\"));",
+                      "  pm.collectionVariables.set(\"token_registro_compat\", firmar(`compat.${sufijo}@prueba.sita-es.test`, \"Prueba\", \"Postman compatibilidad\"));",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"jwt_secret definido (para firmar los token_registro)\", () => pm.expect(pm.variables.get(\"jwt_secret\"), \"Corra con npm run postman:local o --env-var jwt_secret=...\").to.be.a(\"string\").and.not.empty);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login administrador",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correo_admin}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Login con contraseña encendido (LOGIN_CONTRASENA=true en el .env local)\", () => pm.expect(pm.response.code, \"Responde 403: encienda LOGIN_CONTRASENA=true\").to.not.eql(403));",
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
+                      "pm.collectionVariables.set(\"token_admin\", pm.response.json().data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login tutor de la semilla",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correo_tutor}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Login con contraseña encendido (LOGIN_CONTRASENA=true en el .env local)\", () => pm.expect(pm.response.code, \"Responde 403: encienda LOGIN_CONTRASENA=true\").to.not.eql(403));",
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
+                      "pm.collectionVariables.set(\"token_tutor\", pm.response.json().data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login estudiante",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correo_estudiante}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Login con contraseña encendido (LOGIN_CONTRASENA=true en el .env local)\", () => pm.expect(pm.response.code, \"Responde 403: encienda LOGIN_CONTRASENA=true\").to.not.eql(403));",
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
+                      "pm.collectionVariables.set(\"token_estudiante\", pm.response.json().data.token);"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login segundo estudiante",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correo_estudiante2}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Login con contraseña encendido (LOGIN_CONTRASENA=true en el .env local)\", () => pm.expect(pm.response.code, \"Responde 403: encienda LOGIN_CONTRASENA=true\").to.not.eql(403));",
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
+                      "pm.collectionVariables.set(\"token_estudiante2\", pm.response.json().data.token);"
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Necesita el backend local con LOGIN_CONTRASENA=true (para entrar con las cuentas de la semilla) y la variable jwt_secret (el JWT_SECRET del .env local) para firmar los token_registro de Google. La forma fácil: `npm run postman:local`."
+        },
+        {
+          "name": "Consultas y permisos con sesión",
+          "description": "Solo lectura, pero con las sesiones de la semilla (por eso ya no está en Humo: en producción no hay login con contraseña).",
+          "item": [
+            {
+              "name": "Login con contraseña incorrecta → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"correo\": \"{{correo_estudiante}}\",\n  \"contrasena\": \"incorrecta123\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Mensaje: Credenciales inválidas\", () => pm.expect(pm.response.json().error.mensaje).to.include(\"Credenciales inválidas\"));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Login sin campos → 400",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Perfil",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{token_estudiante}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/perfil",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "perfil"
+                  ]
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                      "pm.test(\"Es el estudiante que inició sesión\", () => pm.expect(pm.response.json().data.correo).to.eql(pm.collectionVariables.get(\"correo_estudiante\")));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Registro con Google usando un token de sesión → 401",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/auth/google/registro",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "google",
+                    "registro"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token_registro\": \"{{token_estudiante}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"999\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 1\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "// El token de sesión del login no sirve para registrarse: los tokens de registro usan otro secreto",
+                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
               "name": "Recursos (administrador ve todos)",
               "request": {
                 "method": "GET",
@@ -1373,33 +1527,6 @@
                     "exec": [
                       "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                       "pm.test(\"Todos activos\", () => pm.response.json().data.forEach((r) => pm.expect(r.id_estado).to.eql(1)));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Recursos sin token → 401",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/recursos",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "recursos"
-                  ]
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
                     ]
                   }
                 }
@@ -1658,12 +1785,7 @@
                   }
                 }
               ]
-            }
-          ]
-        },
-        {
-          "name": "Permisos por rol",
-          "item": [
+            },
             {
               "name": "Estudiante no crea materias → 403",
               "request": {
@@ -1749,47 +1871,6 @@
                     "type": "text/javascript",
                     "exec": [
                       "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Sin sesión no crea materias → 401",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/materias",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "materias"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"X\",\n  \"codigo\": \"X\",\n  \"creditos\": 3\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
                     ]
                   }
                 }
@@ -2040,13 +2121,7 @@
                   }
                 }
               ]
-            }
-          ]
-        },
-        {
-          "name": "Solicitudes de tutor",
-          "description": "Solo lectura: consultas y errores de permisos (ninguna petición crea ni cambia datos).",
-          "item": [
+            },
             {
               "name": "Mi solicitud (estudiante) → 200",
               "request": {
@@ -2076,34 +2151,6 @@
                     "exec": [
                       "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                       "pm.test(\"null o una solicitud\", () => { const d = pm.response.json().data; pm.expect(d === null || typeof d.estado === \"string\").to.be.true; });"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Mi solicitud sin sesión → 401",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/solicitudes-tutor/mia",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "solicitudes-tutor",
-                    "mia"
-                  ]
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
                     ]
                   }
                 }
@@ -2390,239 +2437,6 @@
               ]
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "2. Flujo completo (solo local)",
-      "description": "Crea datos de prueba. Correr solo con el entorno local. Necesita la semilla cargada.",
-      "item": [
-        {
-          "name": "Preparación",
-          "item": [
-            {
-              "name": "Calcular fechas y sufijo",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{baseUrl}}/salud",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "salud"
-                  ]
-                }
-              },
-              "event": [
-                {
-                  "listen": "prerequest",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "const DIAS = [\"Domingo\", \"Lunes\", \"Martes\", \"Miércoles\", \"Jueves\", \"Viernes\", \"Sábado\"];",
-                      "const bogota = new Date(Date.now() - 5 * 3600 * 1000);",
-                      "const dia0 = Date.UTC(bogota.getUTCFullYear(), bogota.getUTCMonth(), bogota.getUTCDate());",
-                      "const fecha = (dias) => new Date(dia0 + dias * 86400000);",
-                      "const texto = (d) => d.toISOString().slice(0, 10);",
-                      "pm.collectionVariables.set(\"hoy\", texto(fecha(0)));",
-                      "pm.collectionVariables.set(\"fecha_futura\", texto(fecha(7)));            // dentro de una semana",
-                      "pm.collectionVariables.set(\"dia_futuro\", DIAS[fecha(7).getUTCDay()]);   // su día de la semana",
-                      "pm.collectionVariables.set(\"fecha_otro_dia\", texto(fecha(8)));          // no coincide con el horario",
-                      "pm.collectionVariables.set(\"fecha_pasada\", texto(fecha(-7)));           // mismo día, semana pasada",
-                      "pm.collectionVariables.set(\"sufijo\", String(Date.now()).slice(-7));     // datos únicos en cada corrida"
-                    ]
-                  }
-                },
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login administrador",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_admin}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_admin\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login tutor de la semilla",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_tutor}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_tutor\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login estudiante",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_estudiante}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_estudiante\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            },
-            {
-              "name": "Login segundo estudiante",
-              "request": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "url": {
-                  "raw": "{{baseUrl}}/auth/login",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "auth",
-                    "login"
-                  ]
-                },
-                "body": {
-                  "mode": "raw",
-                  "raw": "{\n  \"correo\": \"{{correo_estudiante2}}\",\n  \"contrasena\": \"{{contrasena}}\"\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
-                }
-              },
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "type": "text/javascript",
-                    "exec": [
-                      "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                      "pm.test(\"Devuelve token y usuario\", () => { const d = pm.response.json().data; pm.expect(d.token).to.be.a(\"string\"); pm.expect(d.usuario).to.not.have.property(\"contrasena_hash\"); });",
-                      "pm.collectionVariables.set(\"token_estudiante2\", pm.response.json().data.token);"
-                    ]
-                  }
-                }
-              ]
-            }
-          ]
         },
         {
           "name": "Registro",
@@ -2638,18 +2452,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
+                  "raw": "{{baseUrl}}/auth/google/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
+                    "google",
                     "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman tutor\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"correo\": \"tutor.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3,\n  \"quiero_ser_tutor\": true,\n  \"motivo_tutor\": \"Quiero dar tutorías de prueba\"\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_registro_tutor}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}2\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3,\n  \"quiero_ser_tutor\": true,\n  \"motivo_tutor\": \"Quiero dar tutorías de prueba\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -2884,18 +2699,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
+                  "raw": "{{baseUrl}}/auth/google/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
+                    "google",
                     "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman estudiante\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_registro_estudiante}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}1\",\n  \"celular\": \"3000000000\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3151,18 +2967,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
+                  "raw": "{{baseUrl}}/auth/google/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
+                    "google",
                     "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Postman compatibilidad\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}3\",\n  \"correo\": \"compat.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 2\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_registro_compat}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}3\",\n  \"id_rol\": 2,\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 2\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3176,7 +2993,7 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "// Ya no hay compatibilidad con el frontend anterior: enviar id_rol (aunque sea 1 o 2) responde 400",
+                      "// Nadie elige rol al registrarse: enviar id_rol (aunque sea 1 o 2) responde 400",
                       "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));",
                       "pm.test(\"Mensaje: el rol no se elige\", () => pm.expect(pm.response.json().error.mensaje).to.eql(\"El rol no se elige en el registro\"));"
                     ]
@@ -3185,7 +3002,7 @@
               ]
             },
             {
-              "name": "El registro rechazado no creó la cuenta → 401",
+              "name": "El registro rechazado no creó la cuenta (el mismo correo se registra → 201)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -3195,18 +3012,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/login",
+                  "raw": "{{baseUrl}}/auth/google/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
-                    "login"
+                    "google",
+                    "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"correo\": \"compat.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\"\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_registro_compat}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}3\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 2\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3220,7 +3038,9 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
-                      "pm.test(\"Responde 401 (la cuenta no existe)\", () => pm.response.to.have.status(401));"
+                      "// Si el registro con id_rol hubiera creado la cuenta, este respondería 409 (correo ya registrado)",
+                      "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                      "pm.test(\"Entra como estudiante (rol 1)\", () => pm.expect(pm.response.json().data.usuario.id_rol).to.eql(1));"
                     ]
                   }
                 }
@@ -3237,18 +3057,19 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{baseUrl}}/auth/registro",
+                  "raw": "{{baseUrl}}/auth/google/registro",
                   "host": [
                     "{{baseUrl}}"
                   ],
                   "path": [
                     "auth",
+                    "google",
                     "registro"
                   ]
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nombre\": \"Prueba\",\n  \"apellido\": \"Duplicada\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"correo\": \"estudiante.{{sufijo}}@prueba.sita-es.test\",\n  \"contrasena\": \"Prueba1234\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
+                  "raw": "{\n  \"token_registro\": \"{{token_registro_estudiante}}\",\n  \"id_tipo_documento\": 1,\n  \"num_documento\": \"9{{sufijo}}9\",\n  \"nombre_programa\": \"Ingeniería de Sistemas\",\n  \"semestre\": 3\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -3262,13 +3083,15 @@
                   "script": {
                     "type": "text/javascript",
                     "exec": [
+                      "// Mismo token_registro (mismo correo) que el estudiante nuevo, con otro documento",
                       "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));"
                     ]
                   }
                 }
               ]
             }
-          ]
+          ],
+          "description": "Usuarios nuevos por POST /auth/google/registro con los token_registro firmados en Preparación (lo mismo que hace el frontend después de «Continuar con Google»)."
         },
         {
           "name": "Materias (administrador)",

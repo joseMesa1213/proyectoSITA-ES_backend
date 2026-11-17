@@ -21,4 +21,7 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   // Dominio de correo permitido con Google (sin @). Por defecto, el institucional.
   googleDominio: (process.env.GOOGLE_DOMINIO || "udea.edu.co").trim().toLowerCase().replace(/^@/, ""),
+  // Login con correo y contraseña: SOLO para desarrollo (cuentas de la semilla, Postman).
+  // Apagado por defecto: en producción se entra únicamente con Google. Solo "true" lo enciende.
+  loginContrasena: process.env.LOGIN_CONTRASENA === "true",
 };

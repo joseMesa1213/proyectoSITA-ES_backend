@@ -34,7 +34,7 @@ function quiereSerTutor(datos) {
 /**
  * Crea el usuario (siempre ESTUDIANTE) con su fila de estudiante y, si la pidió, su solicitud de
  * tutor pendiente, todo en una sola operación. Devuelve la sesión.
- * La usan el registro normal y el registro con Google: así ambos validan lo mismo.
+ * La usan el registro con Google y la semilla (registrarConContrasena): así ambos validan lo mismo.
  * Correo o documento repetidos → 409 (P2002 en el manejador de errores).
  */
 async function crearUsuario(datos, contrasena) {
@@ -74,7 +74,12 @@ async function crearUsuario(datos, contrasena) {
   return { token: firmarToken(usuario), usuario, solicitud_tutor_pendiente: solicitaTutor };
 }
 
-export async function registrar(datos) {
+/**
+ * Crea una cuenta con contraseña. NO la usa ninguna ruta: POST /auth/registro responde siempre 403
+ * (solo se registra con Google). La usa la semilla (`npm run db:seed`) para las cuentas de demostración
+ * que se prueban en desarrollo con LOGIN_CONTRASENA=true.
+ */
+export async function registrarConContrasena(datos) {
   requerirCampos(datos, ["contrasena"]);
   if (String(datos.contrasena).length < 8) {
     throw new AppError(400, "La contraseña debe tener al menos 8 caracteres");
@@ -82,7 +87,15 @@ export async function registrar(datos) {
   return crearUsuario(datos, datos.contrasena);
 }
 
+/**
+ * POST /api/auth/login — solo si LOGIN_CONTRASENA=true (desarrollo). En producción se entra con Google.
+ * Se revisa antes que los campos: apagado, cualquier intento recibe el mismo 403 que pide usar Google.
+ */
 export async function iniciarSesion({ correo, contrasena } = {}) {
+  if (!env.loginContrasena) {
+    throw new AppError(403,
+      `El ingreso con correo y contraseña está desactivado. Use «Continuar con Google» con su correo @${env.googleDominio}.`);
+  }
   requerirCampos({ correo, contrasena }, ["correo", "contrasena"]);
 
   const usuario = await prisma.usuario.findUnique({
@@ -169,7 +182,8 @@ async function verificarCuentaGoogle(credential) {
 /**
  * POST /api/auth/google — público. Body: { credential }
  * Usuario existente y activo → { token, usuario } (igual que /auth/login). Inactivo → 403.
- * Administrador → 403: la cuenta con más permisos no se vincula a Google; entra con correo y contraseña.
+ * Incluye a los administradores: en producción solo se entra con Google. El rol NO viene de Google:
+ * se lee de la BD (y solo `npm run crear-admin` lo pone en 3).
  * Usuario nuevo → { registro_pendiente: true, token_registro, perfil: { correo, nombre, apellido } }.
  */
 export async function iniciarConGoogle({ credential } = {}) {
@@ -178,9 +192,6 @@ export async function iniciarConGoogle({ credential } = {}) {
   const usuario = await prisma.usuario.findUnique({ where: { correo: perfil.correo }, include: incluirPerfil });
   if (usuario) {
     if (usuario.id_estado !== ESTADO.ACTIVO) throw new AppError(403, "Usuario inactivo");
-    if (usuario.id_rol === ROL.ADMINISTRADOR) {
-      throw new AppError(403, "Los administradores deben iniciar sesión con correo y contraseña");
-    }
     return { token: firmarToken(usuario), usuario };
   }
 

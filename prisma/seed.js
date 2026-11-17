@@ -164,7 +164,7 @@ const correo = (nombre, apellido) =>
 let documento = 1036600000;
 // Registro igual al de la app: todos entran como estudiantes; quien quiere ser tutor lo marca
 async function registrar([nombre, apellido, semestre], { quieroSerTutor = false, motivo } = {}) {
-  const { usuario } = await auth.registrar({
+  const { usuario } = await auth.registrarConContrasena({
     nombre, apellido, id_tipo_documento: CEDULA, num_documento: String(++documento),
     correo: correo(nombre, apellido), contrasena: CONTRASENA,
     celular: `300${String(documento).slice(-7)}`,
