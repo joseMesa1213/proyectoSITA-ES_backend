@@ -69,4 +69,13 @@ describe("autorizar", () => {
     expect(siguiente).toHaveBeenCalled();
     expect(() => soloAdmin({ usuario: { id: 2, rol: 2 } }, {}, vi.fn())).toThrow(expect.objectContaining({ status: 403 }));
   });
+
+  test("el administrador es superusuario: pasa también las rutas de estudiante y de tutor", () => {
+    for (const roles of [[1, 2], [2]]) {
+      const siguiente = vi.fn();
+      autorizar(...roles)({ usuario: { id: 1, rol: 3 } }, {}, siguiente);
+      expect(siguiente).toHaveBeenCalled();
+    }
+    expect(() => autorizar(2)({ usuario: { id: 5, rol: 1 } }, {}, vi.fn())).toThrow(expect.objectContaining({ status: 403 }));
+  });
 });

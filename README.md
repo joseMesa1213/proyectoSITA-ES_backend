@@ -169,7 +169,11 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
 - El registro (solo con Google) **no deja elegir rol**: quien quiere ser tutor marca "Quiero ser tutor"
   (`quiero_ser_tutor`, `motivo_tutor?`) y se crea una solicitud pendiente. Ver *Solicitudes para ser tutor*.
 - Todo usuario registrado tiene fila en `tbl_estudiante` (programa y semestre). Los administradores creados con
-  `crear-admin` no la tienen: no reservan.
+  `crear-admin` no la tienen; no hace falta para reservar (la reserva solo usa `tbl_usuario`).
+- **El administrador es superusuario:** `autorizar(...)` siempre lo deja pasar, así que con la misma cuenta reserva,
+  valora, pide tutorías, se asocia a materias y publica tutorías como cualquier estudiante o tutor, además de lo suyo.
+  Las reglas de negocio le aplican igual (no reservar lo propio, cruces, cupos, materia asociada para publicar…). Lo único
+  que no puede es pedir «ser tutor» (409). Los avisos de «pedir una tutoría» también le llegan si tiene la materia asociada.
 - Un **tutor** solo publica tutorías de materias que tiene asociadas en `tbl_materia_x_tutor`.
 - Un **tutor también puede reservar**, pero no en sus propias tutorías.
 - `tbl_horario` es un bloque **semanal** (ej. Lunes 10:00–12:00). La reserva indica el día concreto con `fecha_sesion`, que debe caer en ese día de la semana.
@@ -289,7 +293,7 @@ Cada función de `*.service.js` tiene en su comentario las validaciones exactas 
 
 ## 5. Endpoints
 
-Prefijo: `/api`. **Público** = sin token.
+Prefijo: `/api`. **Público** = sin token. **El administrador entra a todas las rutas con rol** (superusuario: ver §4), aunque la columna *Acceso* no lo repita.
 
 | Módulo | Método y ruta | Acceso | Estado |
 |---|---|---|---|

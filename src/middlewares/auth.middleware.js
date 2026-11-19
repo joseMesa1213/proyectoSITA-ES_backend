@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { prisma } from "../lib/prisma.js";
-import { ESTADO } from "../constants/catalogos.js";
+import { ESTADO, ROL } from "../constants/catalogos.js";
 import { AppError } from "../utils/AppError.js";
 
 /**
@@ -39,11 +39,15 @@ export async function autenticar(req, _res, next) {
   next();
 }
 
-// Usar después de autenticar: autorizar(ROL.TUTOR, ROL.ADMINISTRADOR)
+// Usar después de autenticar: autorizar(ROL.ESTUDIANTE, ROL.TUTOR)
+// El administrador es superusuario: pasa siempre, así puede hacer todo lo de un estudiante y un tutor
+// (reservar, valorar, publicar tutorías…) con su misma cuenta. Las reglas de negocio de los servicios
+// (cupos, cruces, dueño de la tutoría, etc.) le aplican igual que a cualquiera.
 export const autorizar =
   (...roles) =>
   (req, _res, next) => {
-    if (!roles.includes(req.usuario?.rol)) {
+    const rol = req.usuario?.rol;
+    if (rol !== ROL.ADMINISTRADOR && !roles.includes(rol)) {
       throw new AppError(403, "No tiene permisos para esta acción");
     }
     next();

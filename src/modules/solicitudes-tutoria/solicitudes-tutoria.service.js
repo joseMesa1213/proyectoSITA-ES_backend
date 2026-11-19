@@ -100,7 +100,7 @@ export async function crear(usuario, datos = {}) {
       where: {
         id_materia: idMateria,
         id_tutor: { not: usuario.id },
-        tutor: { id_rol: ROL.TUTOR, id_estado: ESTADO.ACTIVO },
+        tutor: { id_rol: { in: [ROL.TUTOR, ROL.ADMINISTRADOR] }, id_estado: ESTADO.ACTIVO },
       },
       select: { id_tutor: true },
     });
