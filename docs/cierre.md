@@ -155,9 +155,13 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 - [x] **Publicar las solicitudes para ser tutor**: respaldo, migración y publicación hechos según
   [`docs/despliegue-solicitudes-tutor.md`](despliegue-solicitudes-tutor.md); los 7 tutores que existían quedaron con su
   solicitud aprobada. La compatibilidad temporal de `id_rol` en el registro ya se quitó: cualquier `id_rol` responde 400.
-- [ ] **Publicar «solo Google»** (rama `feature/solo-google` en los dos repositorios): crear el administrador con
+- [x] **Publicar «solo Google»** (rama `feature/solo-google` en los dos repositorios): crear el administrador con
   `crear-admin`, publicar backend y frontend, **inactivar las cuentas de demostración** y verificar, en ese orden, según
   [`docs/despliegue-solo-google.md`](despliegue-solo-google.md).
+  Hecho: publicado el 2026-11-17; las 16 cuentas de demostración se inactivaron el 2026-11-18, con respaldo previo
+  (`docs/sql/verificar-cuentas-demo.sql` las muestra inactivas). Sus tutorías siguieron visibles durante la prueba con
+  estudiantes y se ocultaron el 2026-11-19 con [`docs/sql/ocultar-tutorias-demo.sql`](sql/ocultar-tutorias-demo.sql),
+  también con respaldo previo, cuando ya había tutorías reales publicadas.
 - [x] **Rutas internas del frontend en Render**: regla *Rewrite* `/*` → `/index.html` configurada (ver el [README del frontend](https://github.com/joseMesa1213/proyectoSITA-ES#despliegue-render)). Sin ella, abrir o recargar directamente una ruta como `/mis-reservas` responde `Not Found`.
 
 ---
