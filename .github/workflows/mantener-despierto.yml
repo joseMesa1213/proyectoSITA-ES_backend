@@ -1,0 +1,42 @@
+# Mantiene despierta la API mientras dura la prueba con estudiantes.
+#
+# Render (plan gratis) duerme el servicio tras 15 min sin tráfico y la primera visita tarda
+# ~20-50 s en despertarlo. Supabase (plan gratis) pausa el proyecto tras 7 días sin actividad.
+# Este flujo llama cada 5 min a GET /api/materias, que es pública y consulta la BD: así se
+# mantienen activos los dos.
+#
+# - Cada 5 min (no 10): GitHub puede atrasar los cron varios minutos cuando tiene carga, y con
+#   10 min el atraso a veces pasa de los 15 min de Render. Repo público = minutos gratis.
+# - Las horas: 750 h/mes gratis en Render alcanzan para un solo servicio web 24/7 (un mes tiene
+#   ≤ 744 h). Si la cuenta tuviera otro servicio web gratis, se acabarían antes de fin de mes.
+# - Para apagarlo al terminar las pruebas: pestaña Actions → "Mantener despierta la API" →
+#   "..." → Disable workflow (o `gh workflow disable mantener-despierto.yml`).
+# - GitHub desactiva solo los flujos programados tras 60 días sin commits en el repo.
+name: Mantener despierta la API
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: # botón "Run workflow" para probarlo a mano
+
+concurrency:
+  group: mantener-despierto
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Llamar a la API (con reintentos mientras despierta)
+        env:
+          URL: https://proyectosita-es-backend.onrender.com/api/materias
+        run: |
+          for intento in 1 2 3; do
+            codigo=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$URL" || true)
+            echo "Intento $intento: HTTP $codigo"
+            if [ "$codigo" = "200" ]; then exit 0; fi
+            sleep 15
+          done
+          echo "::error::La API no respondió 200 después de 3 intentos ($URL)"
+          exit 1

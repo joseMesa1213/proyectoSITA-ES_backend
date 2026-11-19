@@ -454,6 +454,9 @@ Variables de entorno en Render:
 - **Solicitudes para ser tutor:** pasos de respaldo, migración, verificación y orden de publicación en
   [docs/despliegue-solicitudes-tutor.md](docs/despliegue-solicitudes-tutor.md).
 - En el plan gratuito el servicio se duerme tras unos 15 minutos sin uso y la primera petición tarda entre 30 y 50 s.
+- **Mantenerlo despierto:** el flujo de GitHub Actions [`.github/workflows/mantener-despierto.yml`](.github/workflows/mantener-despierto.yml)
+  llama cada 5 min a `GET /api/materias` (consulta la BD, así Supabase tampoco se pausa por inactividad). Se puede
+  correr a mano desde la pestaña *Actions* (*Run workflow*) y apagar con *Disable workflow* cuando no haga falta.
 
 ---
 

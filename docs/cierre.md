@@ -168,6 +168,7 @@ correo real de una persona de la UdeA, que podría entrar a ella con "Continuar 
 |---|---|
 | Cambiar el esquema de la BD | Editar `schema.prisma`, generar la migración y aplicarla con `npm run db:migrate` **antes** de desplegar ([README §6](../README.md#6-base-de-datos-y-migraciones)). |
 | Desplegar | Push o merge a `main` en cada repositorio; Render despliega solo ([README §7](../README.md#7-despliegue-render)). |
+| Mantener la API despierta | Flujo de GitHub Actions `mantener-despierto.yml` (cada 5 min a `/api/materias`). Activarlo o desactivarlo en la pestaña *Actions* del repositorio del backend ([README §7](../README.md#7-despliegue-render)). |
 | Permitir otro dominio del frontend | Agregarlo a `CORS_ORIGIN` del backend en Render, separado por coma. |
 | Cambiar la URL de la API en el frontend | Cambiar `VITE_API_URL` en Render y volver a desplegar el frontend (se lee al compilar). |
 | Ampliar el asistente | Preguntas nuevas en `src/asistente/intenciones.js` y temas nuevos en `src/asistente/temas.js` del frontend; agregar el caso a `clasificador.test.js` y correr `npm test`. |
