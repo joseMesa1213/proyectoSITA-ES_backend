@@ -46,6 +46,11 @@ describe("crear solicitud", () => {
     expect(prisma.solicitudTutor.create).not.toHaveBeenCalled();
   });
 
+  test("el administrador ya puede ofrecer tutorías → 409 sin tocar la BD", async () => {
+    await expect(solicitudes.crear({ id: 1, rol: 3 }, {})).rejects.toMatchObject({ status: 409 });
+    expect(prisma.solicitudTutor.create).not.toHaveBeenCalled();
+  });
+
   test("ya tiene una pendiente (índice único parcial, P2002) → 409", async () => {
     prisma.solicitudTutor.create.mockRejectedValue(Object.assign(new Error("único"), { code: "P2002" }));
     await expect(solicitudes.crear(ESTUDIANTE, {})).rejects.toMatchObject({

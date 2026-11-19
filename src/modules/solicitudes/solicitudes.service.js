@@ -41,12 +41,13 @@ const FILTROS = {
 };
 
 /**
- * POST /api/solicitudes-tutor — estudiante (o tutor, que recibe 409). Body: { motivo? }
+ * POST /api/solicitudes-tutor — estudiante (tutor o administrador reciben 409). Body: { motivo? }
  * - Ya es tutor → 409. Ya tiene una solicitud pendiente → 409 (el índice único parcial de la BD lo
  *   garantiza aunque lleguen dos peticiones a la vez).
  */
 export async function crear(usuario, { motivo } = {}) {
   if (usuario.rol === ROL.TUTOR) throw new AppError(409, "Usted ya es tutor");
+  if (usuario.rol === ROL.ADMINISTRADOR) throw new AppError(409, "El administrador ya puede ofrecer tutorías");
   try {
     const solicitud = await prisma.solicitudTutor.create({
       data: { id_usuario: usuario.id, id_estado: ESTADO.PENDIENTE, motivo: textoOpcional(motivo) },

@@ -5,7 +5,7 @@ import * as ctrl from "./solicitudes.controller.js";
 
 const router = Router();
 const soloAdmin = [autenticar, autorizar(ROL.ADMINISTRADOR)];
-// El tutor puede intentarlo y recibe 409 "Usted ya es tutor"; el administrador, 403
+// El tutor y el administrador pueden intentarlo y reciben 409 (ya pueden ofrecer tutorías)
 const quienSolicita = [autenticar, autorizar(ROL.ESTUDIANTE, ROL.TUTOR)];
 
 router.post("/", quienSolicita, ctrl.crear);

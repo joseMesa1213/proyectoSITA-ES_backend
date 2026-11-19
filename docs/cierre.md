@@ -25,7 +25,7 @@ SITA-ES (Sistema de Tutorías Académicas) permite que estudiantes de la univers
 | **Visitante** (sin sesión) | Ver el catálogo de tutorías con filtros por materia, nivel, modalidad y día; ver el detalle con horarios y valoraciones; registrarse con «Continuar con Google» (correo @udea.edu.co). |
 | **Estudiante** (todos al registrarse) | Reservar un cupo eligiendo horario semanal y fecha de la sesión; ver su agenda (próximas, completadas, canceladas); cancelar; calificar de 1 a 5 una sesión completada; **solicitar ser tutor** (al registrarse o desde *Mi perfil*). |
 | **Tutor** (solicitud aprobada) | Todo lo del estudiante (en tutorías de otros) y además: asociarse a materias, publicar y editar tutorías, agregar o desactivar horarios con su salón o enlace, ver las reservas recibidas por sesión y marcarlas como completadas o canceladas. |
-| **Administrador** | Gestionar el catálogo de materias y los recursos (salones físicos y enlaces virtuales con capacidad) y **aprobar o rechazar las solicitudes para ser tutor**. No reserva. Se crea con `npm run crear-admin`. |
+| **Administrador** | Gestionar el catálogo de materias y los recursos (salones físicos y enlaces virtuales con capacidad) y **aprobar o rechazar las solicitudes para ser tutor**. Es **superusuario**: con la misma cuenta también hace todo lo del estudiante y del tutor (menú agrupado en «Tutor» y «Administración»). Se crea con `npm run crear-admin`. |
 | **Todos** | **Asistente SITA**: chat guiado que busca tutorías por materia o por tema, con filtros de modalidad, nivel y día, y responde preguntas frecuentes según el rol (ver §4). |
 
 ---
