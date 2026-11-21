@@ -208,6 +208,10 @@ creado con `crear-admin` y correo @udea.edu.co) se le guarda el hash de una cont
   ese plazo el tutor la completa él mismo o **cancela** la de quien no asistió. No hay tarea programada (Render gratuito
   duerme el servidor): un solo `UPDATE` se ejecuta al consultar `GET /reservas/mias` o `/reservas/tutor`, como máximo
   cada 5 minutos; si falla, se registra en el log y la consulta responde normal.
+- **Inasistencia:** si el **tutor** cancela una reserva cuando la sesión ya terminó, queda `CANCELADO` con
+  `no_asistio = true` (migración `20261120000000_no_asistio`) y el estudiante recibe «Su tutor registró que no
+  asistió…»; no puede valorarla. Antes de la sesión, o si cancela el estudiante, es una cancelación normal. Las
+  estadísticas del administrador cuentan las inasistencias dentro de las canceladas.
 
 ### Salas Jitsi de las tutorías Virtuales
 - Cada tutoría **Virtual** tiene **su propia sala de Jitsi Meet**, que se crea al publicarla (o al cambiarla a Virtual).
