@@ -7,12 +7,13 @@ import { completarVencidas } from "./autocompletar.js";
 import { fechaLegible, notificar, TIPO } from "../notificaciones/notificaciones.service.js";
 
 // Estados de una reserva en el MVP:  ACTIVO → COMPLETADO  |  ACTIVO → CANCELADO
+// Inasistencia: CANCELADO con no_asistio = true (el tutor la canceló después de la sesión).
 // Orden de bloqueo de filas: usuario → tutoría → horario → recurso (ver tutorias.service)
 
 const incluirDetalle = {
   estado: true,
   recurso: { select: { id: true, nombre: true, tipo: true, ubicacion: true } },
-  valoracion: { select: { id: true, calificacion: true } },
+  valoracion: { select: { id: true, calificacion: true, comentario: true } },
   horario: {
     include: {
       tutoria: {
@@ -58,11 +59,12 @@ async function obtenerReserva(id) {
 // Solo cambia el estado si la reserva sigue ACTIVA (UPDATE ... WHERE id_estado = ACTIVO):
 // si cancelar y completar llegan a la vez, gana una y la otra recibe 409.
 // avisoDe(reserva) arma la notificación del cambio; se crea en la misma transacción.
-async function cambiarEstado(id, id_estado, mensajeSiNoActiva, avisoDe) {
+// extra: otras columnas que cambian junto con el estado (p. ej. { no_asistio: true }).
+async function cambiarEstado(id, id_estado, mensajeSiNoActiva, avisoDe, extra = {}) {
   return prisma.$transaction(async (tx) => {
     const { count } = await tx.reserva.updateMany({
       where: { id, id_estado: ESTADO.ACTIVO },
-      data: { id_estado },
+      data: { id_estado, ...extra },
     });
     if (count === 0) throw new AppError(409, mensajeSiNoActiva);
     const { estudiante, ...reserva } = await tx.reserva.findUnique({
@@ -72,6 +74,13 @@ async function cambiarEstado(id, id_estado, mensajeSiNoActiva, avisoDe) {
     await notificar(tx, [avisoDe({ ...reserva, estudiante })]);
     return formatear(reserva);
   });
+}
+
+// ¿La sesión de la reserva ya terminó? fecha_sesion < hoy, o hoy con hora_fin ya pasada (hora de Bogotá)
+function sesionTermino(reserva) {
+  const fecha = fechaATexto(reserva.fecha_sesion);
+  const fechaHoy = hoy();
+  return fecha < fechaHoy || (fecha === fechaHoy && dateAHora(reserva.horario.hora_fin) <= ahora());
 }
 
 // "la sesión del vie, 20 de nov (18:00)" — para los textos de los avisos
@@ -246,6 +255,8 @@ export async function listarDelTutor(idTutor, { fecha_sesion } = {}) {
 /**
  * PATCH /api/reservas/:id/cancelar — quien reservó o el tutor de la tutoría.
  * Solo reservas ACTIVAS (409, también si otra petición la cambió primero). Pasa a CANCELADO.
+ * Si la cancela el tutor cuando la sesión ya terminó, es una inasistencia: queda no_asistio = true
+ * y el aviso al estudiante lo dice (no puede valorar esa sesión).
  */
 export async function cancelar(id, idUsuario) {
   const reserva = await obtenerReserva(id);
@@ -253,6 +264,15 @@ export async function cancelar(id, idUsuario) {
   const esElTutor = reserva.horario.tutoria.id_tutor === idUsuario;
   if (!esQuienReservo && !esElTutor) {
     throw new AppError(403, "Solo quien reservó o el tutor pueden cancelar esta reserva");
+  }
+  if (esElTutor && !esQuienReservo && sesionTermino(reserva)) {
+    return cambiarEstado(id, ESTADO.CANCELADO, "Solo se pueden cancelar reservas activas", (r) => ({
+      id_usuario: r.id_usuario_estudiante,
+      tipo: TIPO.RESERVA_CANCELADA,
+      titulo: `Inasistencia en «${r.horario.tutoria.titulo}»`,
+      mensaje: `Su tutor registró que no asistió a ${sesionTexto(r)}. Si es un error, escríbale a su tutor.`,
+      enlace: "/mis-reservas",
+    }), { no_asistio: true });
   }
   // Avisa a la otra parte: al tutor si canceló el estudiante; al estudiante si canceló el tutor
   return cambiarEstado(id, ESTADO.CANCELADO, "Solo se pueden cancelar reservas activas", (r) =>
@@ -284,9 +304,7 @@ export async function completar(id, idTutor) {
   if (reserva.horario.tutoria.id_tutor !== idTutor) {
     throw new AppError(403, "Solo el tutor de la tutoría puede completar la reserva");
   }
-  const fecha = fechaATexto(reserva.fecha_sesion);
-  const fechaHoy = hoy();
-  if (fecha > fechaHoy || (fecha === fechaHoy && dateAHora(reserva.horario.hora_fin) > ahora())) {
+  if (!sesionTermino(reserva)) {
     throw new AppError(409, "No se puede completar una sesión que aún no ha terminado");
   }
   return cambiarEstado(id, ESTADO.COMPLETADO, "Solo se pueden completar reservas activas", (r) => ({

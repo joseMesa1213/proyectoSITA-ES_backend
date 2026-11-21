@@ -194,6 +194,7 @@ model Reserva {
   id_estado              Int
   fecha                  DateTime? @default(now()) @db.Timestamp(6) // cuándo se hizo la reserva
   fecha_sesion           DateTime  @db.Date // día concreto en que ocurre la sesión
+  no_asistio             Boolean   @default(false) // el tutor la canceló después de la sesión
 
   estudiante Usuario     @relation(fields: [id_usuario_estudiante], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_estudiante")
   horario    Horario     @relation(fields: [id_horario], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_reserva_horario")
